@@ -73,7 +73,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | 4 | Web 앱 Shell, 라우팅, 공통 입력 UX 기반 | done | Task 1 | Task 2, 3과 병렬 가능 |
 | 5 | 제품/처방 자산 API | done | Task 2, 3 | Task 6과 병렬 가능 |
 | 6 | 프로젝트/그룹/Try API | done | Task 2, 3 | Task 5와 병렬 가능 |
-| 7 | 테스트 결과/마킹 API | pending | Task 6 | Task 8과 일부 병렬 가능 |
+| 7 | 테스트 결과/마킹 API | done | Task 6 | Task 8과 일부 병렬 가능 |
 | 8 | 제품/프로젝트 Web 화면 | pending | Task 4, 5, 6 | Task 9와 병렬 가능 |
 | 9 | 근거/외부 데이터 수집 기반 | pending | Task 2, 3 | Task 8, 10과 병렬 가능 |
 | 10 | Vector 검색 기반 | pending | Task 3, 9 | Task 11과 일부 병렬 가능 |
@@ -1084,7 +1084,7 @@ git commit -m "feat(api): add project group and try endpoints"
 
 ## 10. Task 7: 테스트 결과와 Try 마킹 API
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -1092,20 +1092,21 @@ git commit -m "feat(api): add project group and try endpoints"
 - Modify: `apps/api/src/projects/projects.service.ts`
 - Create: `apps/api/src/projects/dto/create-test-result.dto.ts`
 - Create: `apps/api/src/projects/dto/create-try-mark.dto.ts`
+- Modify: `apps/api/src/projects/projects.service.spec.ts`
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: 테스트 작성**
+- [x] **Step 2: 테스트 작성**
 
 테스트 결과는 모든 필드가 선택값이어도 `tryId`만으로 저장 가능한지 확인한다.
 
-- [ ] **Step 3: DTO 작성**
+- [x] **Step 3: DTO 작성**
 
 테스트 결과 DTO와 마킹 DTO를 작성한다.
 
-- [ ] **Step 4: Service 확장**
+- [x] **Step 4: Service 확장**
 
 기능:
 
@@ -1113,7 +1114,7 @@ git commit -m "feat(api): add project group and try endpoints"
 - try 마킹 등록
 - 의미 있는 try 필터 조회
 
-- [ ] **Step 5: Controller 확장**
+- [x] **Step 5: Controller 확장**
 
 엔드포인트:
 
@@ -1121,7 +1122,7 @@ git commit -m "feat(api): add project group and try endpoints"
 - `POST /projects/tries/:tryId/marks`
 - `GET /projects/:projectId/tries/marked`
 
-- [ ] **Step 6: 테스트와 빌드**
+- [x] **Step 6: 테스트와 빌드**
 
 Run:
 
@@ -1130,7 +1131,14 @@ npm --workspace apps/api test -- projects.service.spec.ts
 npm run build:api
 ```
 
-- [ ] **Step 7: Commit**
+추가 검증:
+
+```bash
+npm --workspace apps/api test
+npm --workspace apps/api run lint
+```
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/projects docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md

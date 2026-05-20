@@ -1,5 +1,6 @@
 import { ProjectsService } from './projects.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TryMarkType } from '@prisma/client';
 
 describe('ProjectsService', () => {
   const prisma = {
@@ -12,6 +13,13 @@ describe('ProjectsService', () => {
       create: jest.fn(),
     },
     formulaTry: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+    },
+    tryTestResult: {
+      create: jest.fn(),
+    },
+    tryMark: {
       create: jest.fn(),
     },
   } as unknown as jest.Mocked<PrismaService>;
@@ -64,6 +72,61 @@ describe('ProjectsService', () => {
           tryNumber: 1,
           status: 'DRAFT',
         }),
+        include: expect.any(Object),
+      }),
+    );
+  });
+
+  it('creates a test result with only try id required', async () => {
+    const createdResult = { id: 'result-1', tryId: 'try-1' };
+    prisma.tryTestResult.create.mockResolvedValue(createdResult);
+
+    const result = await service.createTryTestResult('try-1', {});
+
+    expect(result).toBe(createdResult);
+    expect(prisma.tryTestResult.create).toHaveBeenCalledWith({
+      data: {
+        tryId: 'try-1',
+        testPurpose: undefined,
+        measuredItem: undefined,
+        measuredValue: undefined,
+        unit: undefined,
+        judgment: undefined,
+        memo: undefined,
+      },
+    });
+  });
+
+  it('marks meaningful tries and can query marked tries by project', async () => {
+    const createdMark = { id: 'mark-1', tryId: 'try-1' };
+    prisma.tryMark.create.mockResolvedValue(createdMark);
+    prisma.formulaTry.findMany.mockResolvedValue([]);
+
+    const mark = await service.createTryMark('try-1', {
+      type: TryMarkType.PROMISING,
+      reason: '맛과 안정성 기준 통과',
+    });
+    const markedTries = await service.findMarkedTriesByProject('project-1');
+
+    expect(mark).toBe(createdMark);
+    expect(prisma.tryMark.create).toHaveBeenCalledWith({
+      data: {
+        tryId: 'try-1',
+        type: TryMarkType.PROMISING,
+        reason: '맛과 안정성 기준 통과',
+      },
+    });
+    expect(markedTries).toEqual([]);
+    expect(prisma.formulaTry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          group: {
+            projectId: 'project-1',
+          },
+          marks: {
+            some: {},
+          },
+        },
         include: expect.any(Object),
       }),
     );

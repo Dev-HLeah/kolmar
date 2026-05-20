@@ -7,6 +7,8 @@ import {
   CreateTryIngredientDto,
 } from './dto/create-formula-try.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { CreateTestResultDto } from './dto/create-test-result.dto';
+import { CreateTryMarkDto } from './dto/create-try-mark.dto';
 
 const formulaTryInclude = {
   ingredients: {
@@ -16,6 +18,11 @@ const formulaTryInclude = {
   },
   testResults: true,
   marks: true,
+};
+
+const markedFormulaTryInclude = {
+  ...formulaTryInclude,
+  group: true,
 };
 
 const projectInclude = {
@@ -112,6 +119,47 @@ export class ProjectsService {
     });
   }
 
+  createTryTestResult(tryId: string, dto: CreateTestResultDto) {
+    return this.prisma.tryTestResult.create({
+      data: {
+        tryId,
+        testPurpose: cleanString(dto.testPurpose),
+        measuredItem: cleanString(dto.measuredItem),
+        measuredValue: cleanScalar(dto.measuredValue),
+        unit: cleanString(dto.unit),
+        judgment: cleanString(dto.judgment),
+        memo: cleanString(dto.memo),
+      },
+    });
+  }
+
+  createTryMark(tryId: string, dto: CreateTryMarkDto) {
+    return this.prisma.tryMark.create({
+      data: {
+        tryId,
+        type: dto.type,
+        reason: cleanString(dto.reason),
+      },
+    });
+  }
+
+  findMarkedTriesByProject(projectId: string) {
+    return this.prisma.formulaTry.findMany({
+      where: {
+        group: {
+          projectId,
+        },
+        marks: {
+          some: {},
+        },
+      },
+      orderBy: {
+        tryNumber: 'asc',
+      },
+      include: markedFormulaTryInclude,
+    });
+  }
+
   private toTryIngredientCreateInput(ingredient: CreateTryIngredientDto) {
     const ingredientName = cleanString(ingredient.ingredientName);
 
@@ -140,6 +188,15 @@ function cleanString(value?: string | null) {
 }
 
 function cleanDecimal(value?: number | string | null) {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  const normalized = String(value).trim();
+  return normalized ? normalized : undefined;
+}
+
+function cleanScalar(value?: number | string | null) {
   if (value === null || value === undefined) {
     return undefined;
   }
