@@ -78,7 +78,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | 9 | 근거/외부 데이터 수집 기반 | done | Task 2, 3 | Task 8, 10과 병렬 가능 |
 | 10 | Vector 검색 기반 | done | Task 3, 9 | Task 11과 일부 병렬 가능 |
 | 11 | AI Provider Adapter와 추천 초안 | done | Task 2, 5, 6, 9 | Task 10과 일부 병렬 가능 |
-| 12 | 통합 검증, 배포 설정, 문서 정리 | pending | Task 1-11 | 단독 |
+| 12 | 통합 검증, 배포 설정, 문서 정리 | done | Task 1-11 | 단독 |
 
 병렬 처리 추천:
 
@@ -1409,7 +1409,7 @@ git commit -m "feat(api): add AI provider adapters and draft recommendations"
 
 ## 15. Task 12: 통합 검증, 배포 설정, 문서 정리
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -1420,9 +1420,9 @@ git commit -m "feat(api): add AI provider adapters and draft recommendations"
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: Railway 설정 작성**
+- [x] **Step 2: Railway 설정 작성**
 
 `apps/api/railway.json`:
 
@@ -1438,7 +1438,7 @@ git commit -m "feat(api): add AI provider adapters and draft recommendations"
 }
 ```
 
-- [ ] **Step 3: Vercel 설정 작성**
+- [x] **Step 3: Vercel 설정 작성**
 
 `apps/web/vercel.json`:
 
@@ -1450,7 +1450,7 @@ git commit -m "feat(api): add AI provider adapters and draft recommendations"
 }
 ```
 
-- [ ] **Step 4: 전체 검증**
+- [x] **Step 4: 전체 검증**
 
 Run:
 
@@ -1468,13 +1468,22 @@ web build succeeds
 api tests pass
 ```
 
-- [ ] **Step 5: README에 실행법 갱신**
+추가 검증:
+
+```bash
+npm --workspace apps/api run prisma:validate
+npm --workspace apps/web test -- --run
+npm --workspace apps/api run lint
+npm --workspace apps/web run lint
+```
+
+- [x] **Step 5: README에 실행법 갱신**
 
 README에 Supabase, OpenAI, Gemini env 입력 위치와 로컬 실행 명령을 기록한다.
 
-- [ ] **Step 6: Task 상태를 done으로 변경**
+- [x] **Step 6: Task 상태를 done으로 변경**
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/railway.json apps/web/vercel.json README.md docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md
