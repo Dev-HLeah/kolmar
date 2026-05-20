@@ -72,6 +72,7 @@ npm --workspace apps/api run prisma:migrate
 npm run build:api
 npm run build:web
 npm run test:api
+npm run test:api:e2e
 npm --workspace apps/api run lint
 npm --workspace apps/web run lint
 npm --workspace apps/web test -- --run
