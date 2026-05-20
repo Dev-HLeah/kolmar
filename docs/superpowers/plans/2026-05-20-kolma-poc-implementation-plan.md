@@ -68,7 +68,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | Task | 내용 | 상태 | 선행 작업 | 병렬 가능 여부 |
 | --- | --- | --- | --- | --- |
 | 1 | 모노레포 골격, React/Nest 프로젝트, env 계약 | done | 없음 | 단독 |
-| 2 | API 환경설정, Health check, 기본 테스트 | pending | Task 1 | Task 3 준비와 병렬 가능 |
+| 2 | API 환경설정, Health check, 기본 테스트 | done | Task 1 | Task 3 준비와 병렬 가능 |
 | 3 | Prisma/Supabase 데이터 모델 | pending | Task 1 | Task 5와 병렬 가능 |
 | 4 | Web 앱 Shell, 라우팅, 공통 입력 UX 기반 | pending | Task 1 | Task 2, 3과 병렬 가능 |
 | 5 | 제품/처방 자산 API | pending | Task 2, 3 | Task 6과 병렬 가능 |
@@ -324,7 +324,7 @@ git commit -m "chore: scaffold Kolma PoC workspace"
 
 ## 5. Task 2: API 환경설정과 Health Check
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -336,9 +336,9 @@ git commit -m "chore: scaffold Kolma PoC workspace"
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: 필요한 패키지 설치**
+- [x] **Step 2: 필요한 패키지 설치**
 
 Run:
 
@@ -346,7 +346,7 @@ Run:
 npm --workspace apps/api install @nestjs/config zod
 ```
 
-- [ ] **Step 3: 환경변수 검증 모듈 작성**
+- [x] **Step 3: 환경변수 검증 모듈 작성**
 
 `apps/api/src/config/env.ts`:
 
@@ -375,7 +375,7 @@ export function validateEnv(config: Record<string, unknown>): Env {
 }
 ```
 
-- [ ] **Step 4: Health Controller 테스트 작성**
+- [x] **Step 4: Health Controller 테스트 작성**
 
 `apps/api/src/health/health.controller.spec.ts`:
 
@@ -394,7 +394,7 @@ describe('HealthController', () => {
 });
 ```
 
-- [ ] **Step 5: 실패 확인**
+- [x] **Step 5: 실패 확인**
 
 Run:
 
@@ -408,7 +408,7 @@ Expected:
 Cannot find module './health.controller'
 ```
 
-- [ ] **Step 6: Health Controller 구현**
+- [x] **Step 6: Health Controller 구현**
 
 `apps/api/src/health/health.controller.ts`:
 
@@ -427,7 +427,7 @@ export class HealthController {
 }
 ```
 
-- [ ] **Step 7: AppModule에 Config와 Health 등록**
+- [x] **Step 7: AppModule에 Config와 Health 등록**
 
 `apps/api/src/app.module.ts`:
 
@@ -450,7 +450,7 @@ import { HealthController } from './health/health.controller';
 export class AppModule {}
 ```
 
-- [ ] **Step 8: main.ts에서 포트 사용**
+- [x] **Step 8: main.ts에서 포트 사용**
 
 `apps/api/src/main.ts`:
 
@@ -472,7 +472,7 @@ async function bootstrap() {
 void bootstrap();
 ```
 
-- [ ] **Step 9: 테스트 및 빌드**
+- [x] **Step 9: 테스트 및 빌드**
 
 Run:
 
@@ -487,7 +487,7 @@ Expected:
 PASS src/health/health.controller.spec.ts
 ```
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add apps/api docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md
