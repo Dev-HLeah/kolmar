@@ -70,7 +70,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | 1 | 모노레포 골격, React/Nest 프로젝트, env 계약 | done | 없음 | 단독 |
 | 2 | API 환경설정, Health check, 기본 테스트 | done | Task 1 | Task 3 준비와 병렬 가능 |
 | 3 | Prisma/Supabase 데이터 모델 | done | Task 1 | Task 5와 병렬 가능 |
-| 4 | Web 앱 Shell, 라우팅, 공통 입력 UX 기반 | pending | Task 1 | Task 2, 3과 병렬 가능 |
+| 4 | Web 앱 Shell, 라우팅, 공통 입력 UX 기반 | done | Task 1 | Task 2, 3과 병렬 가능 |
 | 5 | 제품/처방 자산 API | pending | Task 2, 3 | Task 6과 병렬 가능 |
 | 6 | 프로젝트/그룹/Try API | pending | Task 2, 3 | Task 5와 병렬 가능 |
 | 7 | 테스트 결과/마킹 API | pending | Task 6 | Task 8과 일부 병렬 가능 |
@@ -796,7 +796,7 @@ git commit -m "feat(api): add Prisma domain schema"
 
 ## 7. Task 4: Web 앱 Shell과 공통 입력 UX 기반
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -806,12 +806,17 @@ git commit -m "feat(api): add Prisma domain schema"
 - Create: `apps/web/src/components/FormulaInputTable.tsx`
 - Create: `apps/web/src/api/client.ts`
 - Create: `apps/web/src/pages/DashboardPage.tsx`
+- Create: `apps/web/src/pages/ProductsPage.tsx`
+- Create: `apps/web/src/pages/ProjectsPage.tsx`
+- Create: `apps/web/src/test/setup.ts`
+- Create: `apps/web/src/components/FormulaInputTable.test.tsx`
+- Create: `apps/web/src/app/App.test.tsx`
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: 라우팅 패키지 설치**
+- [x] **Step 2: 라우팅/테스트 패키지 설치**
 
 Run:
 
@@ -819,7 +824,9 @@ Run:
 npm --workspace apps/web install react-router-dom
 ```
 
-- [ ] **Step 3: API client 작성**
+테스트 우선 구현을 위해 `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`도 dev dependency로 설치한다.
+
+- [x] **Step 3: API client 작성**
 
 `apps/web/src/api/client.ts`:
 
@@ -835,7 +842,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 ```
 
-- [ ] **Step 4: Layout 작성**
+- [x] **Step 4: Layout 작성**
 
 `apps/web/src/components/Layout.tsx`:
 
@@ -862,7 +869,7 @@ export function Layout() {
 }
 ```
 
-- [ ] **Step 5: FormulaInputTable 작성**
+- [x] **Step 5: FormulaInputTable 작성**
 
 `apps/web/src/components/FormulaInputTable.tsx`:
 
@@ -912,7 +919,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
 }
 ```
 
-- [ ] **Step 6: Build 확인**
+- [x] **Step 6: Test/Build/Lint/Browser 확인**
 
 Run:
 
@@ -926,7 +933,16 @@ Expected:
 ✓ built
 ```
 
-- [ ] **Step 7: Commit**
+추가 검증:
+
+```bash
+npm --workspace apps/web test -- --run
+npm --workspace apps/web run lint
+```
+
+브라우저에서 `http://127.0.0.1:5173/` 접속 후 대시보드 렌더링, `음성 입력` 버튼 노출, 배합 원료명 입력, `원료 행 추가` 동작을 확인한다.
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md
