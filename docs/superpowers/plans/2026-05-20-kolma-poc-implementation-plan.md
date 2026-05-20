@@ -74,7 +74,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | 5 | 제품/처방 자산 API | done | Task 2, 3 | Task 6과 병렬 가능 |
 | 6 | 프로젝트/그룹/Try API | done | Task 2, 3 | Task 5와 병렬 가능 |
 | 7 | 테스트 결과/마킹 API | done | Task 6 | Task 8과 일부 병렬 가능 |
-| 8 | 제품/프로젝트 Web 화면 | pending | Task 4, 5, 6 | Task 9와 병렬 가능 |
+| 8 | 제품/프로젝트 Web 화면 | done | Task 4, 5, 6 | Task 9와 병렬 가능 |
 | 9 | 근거/외부 데이터 수집 기반 | pending | Task 2, 3 | Task 8, 10과 병렬 가능 |
 | 10 | Vector 검색 기반 | pending | Task 3, 9 | Task 11과 일부 병렬 가능 |
 | 11 | AI Provider Adapter와 추천 초안 | pending | Task 2, 5, 6, 9 | Task 10과 일부 병렬 가능 |
@@ -1147,7 +1147,7 @@ git commit -m "feat(api): add try test results and marks"
 
 ## 11. Task 8: 제품/프로젝트 Web 화면
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -1156,24 +1156,26 @@ git commit -m "feat(api): add try test results and marks"
 - Create: `apps/web/src/pages/ProjectsPage.tsx`
 - Create: `apps/web/src/pages/ProjectDetailPage.tsx`
 - Modify: `apps/web/src/app/routes.tsx`
+- Create: `apps/web/src/pages/ProductsPage.test.tsx`
+- Create: `apps/web/src/pages/ProjectDetailPage.test.tsx`
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: 제품 목록/등록 화면 작성**
+- [x] **Step 2: 제품 목록/등록 화면 작성**
 
 제품명, 기능성, 제형, 처방 원료를 담백한 폼으로 입력한다.
 
-- [ ] **Step 3: 프로젝트 목록/생성 화면 작성**
+- [x] **Step 3: 프로젝트 목록/생성 화면 작성**
 
 신규 생성과 기존 제품 기반 시작 옵션을 제공한다.
 
-- [ ] **Step 4: 프로젝트 상세 화면 작성**
+- [x] **Step 4: 프로젝트 상세 화면 작성**
 
 그룹 목록, try 목록, 의미 있는 try 필터, 테스트 결과 등록 영역을 보여준다.
 
-- [ ] **Step 5: Build 확인**
+- [x] **Step 5: Test/Build/Lint/Browser 확인**
 
 Run:
 
@@ -1181,7 +1183,16 @@ Run:
 npm run build:web
 ```
 
-- [ ] **Step 6: Commit**
+추가 검증:
+
+```bash
+npm --workspace apps/web test -- --run
+npm --workspace apps/web run lint
+```
+
+브라우저에서 제품/프로젝트/프로젝트 상세 화면 렌더링을 확인한다. 입력 상호작용은 in-app browser 가상 클립보드 제한으로 Testing Library에서 검증한다.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md
