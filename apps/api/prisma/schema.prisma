@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  RESEARCHER
+  VIEWER
+}
+
+enum TryStatus {
+  DRAFT
+  PLANNED
+  IN_PROGRESS
+  TESTED
+  CANDIDATE
+  FINAL_CANDIDATE
+  DISCARDED
+  ON_HOLD
+}
+
+enum TryMarkType {
+  PROMISING
+  ISSUE_FOUND
+  BASELINE_CANDIDATE
+  FINAL_CANDIDATE
+  DISCARDED
+  NEEDS_REVIEW
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(RESEARCHER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Ingredient {
+  id                        String                     @id @default(cuid())
+  name                      String                     @unique
+  description               String?
+  aliases                   IngredientAlias[]
+  productFormulaIngredients ProductFormulaIngredient[]
+  tryIngredients            TryIngredient[]
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+}
+
+model IngredientAlias {
+  id           String     @id @default(cuid())
+  ingredientId String
+  alias        String
+  source       String?
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([ingredientId, alias])
+}
+
+model DosageForm {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  description     String?
+  isKolmarSpecial Boolean   @default(false)
+  products        Product[]
+}
+
+model PackagingOption {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  description     String?
+  isKolmarSpecial Boolean   @default(false)
+  products        Product[]
+}
+
+model Product {
+  id           String           @id @default(cuid())
+  name         String
+  category     String?
+  target       String?
+  function     String?
+  dosageFormId String?
+  packagingId  String?
+  dosageForm   DosageForm?      @relation(fields: [dosageFormId], references: [id])
+  packaging    PackagingOption? @relation(fields: [packagingId], references: [id])
+  formulas     ProductFormula[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model ProductFormula {
+  id          String                     @id @default(cuid())
+  productId   String
+  version     String
+  note        String?
+  product     Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredients ProductFormulaIngredient[]
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@unique([productId, version])
+}
+
+model ProductFormulaIngredient {
+  id           String         @id @default(cuid())
+  formulaId    String
+  ingredientId String
+  amount       Decimal?
+  unit         String?
+  ratio        Decimal?
+  role         String?
+  formula      ProductFormula @relation(fields: [formulaId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient     @relation(fields: [ingredientId], references: [id])
+}
+
+model DevelopmentProject {
+  id                  String            @id @default(cuid())
+  name                String
+  goal                String?
+  target              String?
+  function            String?
+  desiredForm         String?
+  costRange           String?
+  excludedIngredients String?
+  sourceProductId     String?
+  sourceFormulaId     String?
+  groups              ExperimentGroup[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+}
+
+model ExperimentGroup {
+  id        String             @id @default(cuid())
+  projectId String
+  name      String
+  purpose   String?
+  project   DevelopmentProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tries     FormulaTry[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model FormulaTry {
+  id          String          @id @default(cuid())
+  groupId     String
+  tryNumber   Int
+  status      TryStatus       @default(DRAFT)
+  title       String?
+  memo        String?
+  group       ExperimentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  ingredients TryIngredient[]
+  testResults TryTestResult[]
+  marks       TryMark[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([groupId, tryNumber])
+}
+
+model TryIngredient {
+  id           String     @id @default(cuid())
+  tryId        String
+  ingredientId String
+  amount       Decimal?
+  unit         String?
+  ratio        Decimal?
+  note         String?
+  formulaTry   FormulaTry @relation(fields: [tryId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+}
+
+model TryTestResult {
+  id            String     @id @default(cuid())
+  tryId         String
+  testPurpose   String?
+  measuredItem  String?
+  measuredValue String?
+  unit          String?
+  judgment      String?
+  memo          String?
+  formulaTry    FormulaTry @relation(fields: [tryId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+}
+
+model TryMark {
+  id         String      @id @default(cuid())
+  tryId      String
+  type       TryMarkType
+  reason     String?
+  formulaTry FormulaTry  @relation(fields: [tryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+}
+
+model EvidenceSource {
+  id        String         @id @default(cuid())
+  name      String
+  type      String
+  baseUrl   String?
+  items     EvidenceItem[]
+  createdAt DateTime       @default(now())
+}
+
+model EvidenceItem {
+  id        String         @id @default(cuid())
+  sourceId  String
+  title     String
+  summary   String?
+  rawText   String?
+  sourceUrl String?
+  grade     String
+  source    EvidenceSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  links     EvidenceLink[]
+  createdAt DateTime       @default(now())
+}
+
+model EvidenceLink {
+  id         String       @id @default(cuid())
+  evidenceId String
+  targetType String
+  targetId   String
+  relation   String?
+  evidence   EvidenceItem @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+}
+
+model DataImportJob {
+  id         String    @id @default(cuid())
+  sourceName String
+  status     String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  message    String?
+}

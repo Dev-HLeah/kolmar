@@ -69,7 +69,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | --- | --- | --- | --- | --- |
 | 1 | 모노레포 골격, React/Nest 프로젝트, env 계약 | done | 없음 | 단독 |
 | 2 | API 환경설정, Health check, 기본 테스트 | done | Task 1 | Task 3 준비와 병렬 가능 |
-| 3 | Prisma/Supabase 데이터 모델 | pending | Task 1 | Task 5와 병렬 가능 |
+| 3 | Prisma/Supabase 데이터 모델 | done | Task 1 | Task 5와 병렬 가능 |
 | 4 | Web 앱 Shell, 라우팅, 공통 입력 UX 기반 | pending | Task 1 | Task 2, 3과 병렬 가능 |
 | 5 | 제품/처방 자산 API | pending | Task 2, 3 | Task 6과 병렬 가능 |
 | 6 | 프로젝트/그룹/Try API | pending | Task 2, 3 | Task 5와 병렬 가능 |
@@ -496,18 +496,19 @@ git commit -m "feat(api): add environment config and health check"
 
 ## 6. Task 3: Prisma/Supabase 데이터 모델
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
 - Create: `apps/api/prisma/schema.prisma`
+- Create: `apps/api/prisma.config.ts`
 - Modify: `apps/api/package.json`
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: Prisma 설치**
+- [x] **Step 2: Prisma 설치**
 
 Run:
 
@@ -516,7 +517,7 @@ npm --workspace apps/api install @prisma/client
 npm --workspace apps/api install --save-dev prisma
 ```
 
-- [ ] **Step 3: Prisma schema 작성**
+- [x] **Step 3: Prisma schema/config 작성**
 
 `apps/api/prisma/schema.prisma`:
 
@@ -526,9 +527,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -758,7 +757,9 @@ model DataImportJob {
 }
 ```
 
-- [ ] **Step 4: Prisma scripts 추가**
+Prisma 7에서는 datasource URL을 `schema.prisma`가 아니라 `prisma.config.ts`에서 주입한다. `DIRECT_URL`이 있으면 Supabase direct connection을 우선 사용하고, 없으면 `DATABASE_URL`로 fallback한다.
+
+- [x] **Step 4: Prisma scripts 추가**
 
 `apps/api/package.json` scripts에 추가:
 
@@ -770,7 +771,7 @@ model DataImportJob {
 }
 ```
 
-- [ ] **Step 5: Schema 검증**
+- [x] **Step 5: Schema 검증**
 
 Supabase 값이 없으면 `prisma validate`만 실행한다.
 
@@ -786,7 +787,7 @@ Expected:
 The schema at prisma/schema.prisma is valid
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/prisma apps/api/package.json package-lock.json docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md
