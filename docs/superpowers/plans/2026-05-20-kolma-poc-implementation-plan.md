@@ -71,7 +71,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | 2 | API 환경설정, Health check, 기본 테스트 | done | Task 1 | Task 3 준비와 병렬 가능 |
 | 3 | Prisma/Supabase 데이터 모델 | done | Task 1 | Task 5와 병렬 가능 |
 | 4 | Web 앱 Shell, 라우팅, 공통 입력 UX 기반 | done | Task 1 | Task 2, 3과 병렬 가능 |
-| 5 | 제품/처방 자산 API | pending | Task 2, 3 | Task 6과 병렬 가능 |
+| 5 | 제품/처방 자산 API | done | Task 2, 3 | Task 6과 병렬 가능 |
 | 6 | 프로젝트/그룹/Try API | pending | Task 2, 3 | Task 5와 병렬 가능 |
 | 7 | 테스트 결과/마킹 API | pending | Task 6 | Task 8과 일부 병렬 가능 |
 | 8 | 제품/프로젝트 Web 화면 | pending | Task 4, 5, 6 | Task 9와 병렬 가능 |
@@ -951,7 +951,7 @@ git commit -m "feat(web): add application shell and formula input table"
 
 ## 8. Task 5: 제품/처방 자산 API
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -960,24 +960,27 @@ git commit -m "feat(web): add application shell and formula input table"
 - Create: `apps/api/src/products/products.service.ts`
 - Create: `apps/api/src/products/dto/create-product.dto.ts`
 - Create: `apps/api/src/products/products.service.spec.ts`
+- Create: `apps/api/src/prisma/prisma.module.ts`
+- Create: `apps/api/src/prisma/prisma.service.ts`
+- Modify: `apps/api/eslint.config.mjs`
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: failing service test 작성**
+- [x] **Step 2: failing service test 작성**
 
 테스트는 PrismaService를 mock으로 주입해 `createProduct`가 제품을 생성하는지 확인한다.
 
-- [ ] **Step 3: DTO 작성**
+- [x] **Step 3: DTO 작성**
 
 `create-product.dto.ts`는 제품명, 기능성, 타깃, 제형, 포장, 처방 원료 배열을 받는다. 처방 원료의 함량 값은 선택값으로 둔다.
 
-- [ ] **Step 4: Service 구현**
+- [x] **Step 4: Service 구현**
 
 `ProductsService`는 `createProduct`, `findProducts`, `findProductById`를 제공한다.
 
-- [ ] **Step 5: Controller 구현**
+- [x] **Step 5: Controller 구현**
 
 엔드포인트:
 
@@ -985,7 +988,7 @@ git commit -m "feat(web): add application shell and formula input table"
 - `GET /products`
 - `GET /products/:id`
 
-- [ ] **Step 6: 테스트와 빌드**
+- [x] **Step 6: 테스트와 빌드**
 
 Run:
 
@@ -994,7 +997,14 @@ npm --workspace apps/api test -- products.service.spec.ts
 npm run build:api
 ```
 
-- [ ] **Step 7: Commit**
+추가 검증:
+
+```bash
+npm --workspace apps/api test
+npm --workspace apps/api run lint
+```
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/products docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md

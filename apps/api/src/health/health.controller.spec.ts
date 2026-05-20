@@ -6,7 +6,7 @@ describe('HealthController', () => {
 
     expect(controller.getHealth()).toEqual({
       status: 'ok',
-      service: 'kolma-api'
+      service: 'kolma-api',
     });
   });
 });
