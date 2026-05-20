@@ -230,10 +230,28 @@ model EvidenceLink {
 }
 
 model DataImportJob {
-  id         String    @id @default(cuid())
+  id         String              @id @default(cuid())
   sourceName String
   status     String
-  startedAt  DateTime  @default(now())
+  startedAt  DateTime            @default(now())
   finishedAt DateTime?
   message    String?
+  rawRecords RawExternalRecord[]
+}
+
+model RawExternalRecord {
+  id                   String         @id @default(cuid())
+  importJobId          String?
+  sourceName           String
+  externalId           String?
+  sourceUrl            String?
+  rawPayload           Json
+  normalizedStatus     String         @default("PENDING")
+  normalizedEvidenceId String?
+  message              String?
+  importJob            DataImportJob? @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([sourceName, externalId])
 }
