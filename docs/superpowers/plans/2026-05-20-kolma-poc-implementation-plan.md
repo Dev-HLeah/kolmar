@@ -67,7 +67,7 @@ VITE_API_BASE_URL=http://localhost:3000
 
 | Task | 내용 | 상태 | 선행 작업 | 병렬 가능 여부 |
 | --- | --- | --- | --- | --- |
-| 1 | 모노레포 골격, React/Nest 프로젝트, env 계약 | pending | 없음 | 단독 |
+| 1 | 모노레포 골격, React/Nest 프로젝트, env 계약 | done | 없음 | 단독 |
 | 2 | API 환경설정, Health check, 기본 테스트 | pending | Task 1 | Task 3 준비와 병렬 가능 |
 | 3 | Prisma/Supabase 데이터 모델 | pending | Task 1 | Task 5와 병렬 가능 |
 | 4 | Web 앱 Shell, 라우팅, 공통 입력 UX 기반 | pending | Task 1 | Task 2, 3과 병렬 가능 |
@@ -151,7 +151,7 @@ VITE_API_BASE_URL=http://localhost:3000
 
 ## 4. Task 1: 모노레포 골격과 환경변수 계약
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -164,11 +164,11 @@ VITE_API_BASE_URL=http://localhost:3000
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
 `docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md`의 Task 1 상태를 `in_progress`로 바꾼다.
 
-- [ ] **Step 2: React 프로젝트 생성**
+- [x] **Step 2: React 프로젝트 생성**
 
 Run:
 
@@ -182,7 +182,7 @@ Expected:
 Scaffolding project in apps/web
 ```
 
-- [ ] **Step 3: NestJS 프로젝트 생성**
+- [x] **Step 3: NestJS 프로젝트 생성**
 
 Run:
 
@@ -196,7 +196,7 @@ Expected:
 CREATE apps/api
 ```
 
-- [ ] **Step 4: 루트 workspace package 작성**
+- [x] **Step 4: 루트 workspace package 작성**
 
 `package.json`:
 
@@ -221,7 +221,7 @@ CREATE apps/api
 }
 ```
 
-- [ ] **Step 5: 환경변수 예시 작성**
+- [x] **Step 5: 환경변수 예시 작성**
 
 `.env.example`:
 
@@ -250,7 +250,7 @@ API_PORT=3000
 NODE_ENV=development
 ```
 
-- [ ] **Step 6: Git ignore 확인**
+- [x] **Step 6: Git ignore 확인**
 
 `.gitignore`에 다음 내용이 있어야 한다.
 
@@ -265,7 +265,7 @@ dist/
 coverage/
 ```
 
-- [ ] **Step 7: README 초안 작성**
+- [x] **Step 7: README 초안 작성**
 
 `README.md`:
 
@@ -292,7 +292,7 @@ React + NestJS + Prisma + Supabase 기반 건강기능식품 AI 배합 설계 Po
 `docs/request/` contains local reference materials and is intentionally ignored by Git.
 ```
 
-- [ ] **Step 8: 설치 및 기본 빌드 확인**
+- [x] **Step 8: 설치 및 기본 빌드 확인**
 
 Run:
 
@@ -309,11 +309,11 @@ apps/web build succeeds
 apps/api build succeeds
 ```
 
-- [ ] **Step 9: Task 상태를 done으로 변경**
+- [x] **Step 9: Task 상태를 done으로 변경**
 
 Task 1 상태를 `done`으로 바꾼다.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 Run:
 
