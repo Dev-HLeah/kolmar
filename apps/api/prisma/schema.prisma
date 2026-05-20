@@ -255,3 +255,18 @@ model RawExternalRecord {
 
   @@index([sourceName, externalId])
 }
+
+/// Supabase SQL Editor setup:
+/// create extension if not exists vector;
+model VectorDocument {
+  id         String                 @id @default(cuid())
+  entityType String
+  entityId   String
+  content    String
+  metadata   Json?
+  embedding  Unsupported("vector")?
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  @@index([entityType, entityId])
+}

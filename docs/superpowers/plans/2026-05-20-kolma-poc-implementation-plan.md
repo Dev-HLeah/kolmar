@@ -76,7 +76,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | 7 | 테스트 결과/마킹 API | done | Task 6 | Task 8과 일부 병렬 가능 |
 | 8 | 제품/프로젝트 Web 화면 | done | Task 4, 5, 6 | Task 9와 병렬 가능 |
 | 9 | 근거/외부 데이터 수집 기반 | done | Task 2, 3 | Task 8, 10과 병렬 가능 |
-| 10 | Vector 검색 기반 | pending | Task 3, 9 | Task 11과 일부 병렬 가능 |
+| 10 | Vector 검색 기반 | done | Task 3, 9 | Task 11과 일부 병렬 가능 |
 | 11 | AI Provider Adapter와 추천 초안 | pending | Task 2, 5, 6, 9 | Task 10과 일부 병렬 가능 |
 | 12 | 통합 검증, 배포 설정, 문서 정리 | pending | Task 1-11 | 단독 |
 
@@ -1266,20 +1266,21 @@ git commit -m "feat(api): add evidence import foundation"
 
 ## 13. Task 10: Vector 검색 기반
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
 - Create: `apps/api/src/search/search.module.ts`
 - Create: `apps/api/src/search/search.controller.ts`
 - Create: `apps/api/src/search/search.service.ts`
+- Create: `apps/api/src/search/search.service.spec.ts`
 - Modify: `apps/api/prisma/schema.prisma`
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: pgvector 확장 메모 추가**
+- [x] **Step 2: pgvector 확장 메모 추가**
 
 Prisma schema 또는 migration SQL에 Supabase SQL Editor에서 실행할 SQL을 문서화한다.
 
@@ -1287,21 +1288,21 @@ Prisma schema 또는 migration SQL에 Supabase SQL Editor에서 실행할 SQL을
 create extension if not exists vector;
 ```
 
-- [ ] **Step 3: 검색 서비스 인터페이스 작성**
+- [x] **Step 3: 검색 서비스 인터페이스 작성**
 
 `SearchService`는 정형 검색과 벡터 검색을 나누어 제공한다.
 
-- [ ] **Step 4: Mock vector search 구현**
+- [x] **Step 4: Mock vector search 구현**
 
 Supabase 연결값이 없을 때도 개발이 가능하도록 mock 결과를 반환한다.
 
-- [ ] **Step 5: Controller 구현**
+- [x] **Step 5: Controller 구현**
 
 엔드포인트:
 
 - `GET /search?q=...`
 
-- [ ] **Step 6: 테스트와 빌드**
+- [x] **Step 6: 테스트와 빌드**
 
 Run:
 
@@ -1309,7 +1310,15 @@ Run:
 npm run build:api
 ```
 
-- [ ] **Step 7: Commit**
+추가 검증:
+
+```bash
+npm --workspace apps/api run prisma:validate
+npm --workspace apps/api test
+npm --workspace apps/api run lint
+```
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/search apps/api/prisma docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md

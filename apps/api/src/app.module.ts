@@ -5,6 +5,7 @@ import { EvidenceModule } from './evidence/evidence.module';
 import { HealthController } from './health/health.controller';
 import { ProductsModule } from './products/products.module';
 import { ProjectsModule } from './projects/projects.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ProjectsModule } from './projects/projects.module';
     ProductsModule,
     ProjectsModule,
     EvidenceModule,
+    SearchModule,
   ],
   controllers: [HealthController],
   providers: [],
