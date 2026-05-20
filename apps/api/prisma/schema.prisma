@@ -146,18 +146,20 @@ model ExperimentGroup {
 }
 
 model FormulaTry {
-  id          String          @id @default(cuid())
-  groupId     String
-  tryNumber   Int
-  status      TryStatus       @default(DRAFT)
-  title       String?
-  memo        String?
-  group       ExperimentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  ingredients TryIngredient[]
-  testResults TryTestResult[]
-  marks       TryMark[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id                   String          @id @default(cuid())
+  groupId              String
+  tryNumber            Int
+  status               TryStatus       @default(DRAFT)
+  title                String?
+  dosageForm           String?
+  manufacturingProcess String?
+  memo                 String?
+  group                ExperimentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  ingredients          TryIngredient[]
+  testResults          TryTestResult[]
+  marks                TryMark[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   @@unique([groupId, tryNumber])
 }
