@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AiModule } from './ai/ai.module';
 import { validateEnv } from './config/env';
 import { EvidenceModule } from './evidence/evidence.module';
 import { HealthController } from './health/health.controller';
@@ -17,6 +18,7 @@ import { SearchModule } from './search/search.module';
     ProjectsModule,
     EvidenceModule,
     SearchModule,
+    AiModule,
   ],
   controllers: [HealthController],
   providers: [],

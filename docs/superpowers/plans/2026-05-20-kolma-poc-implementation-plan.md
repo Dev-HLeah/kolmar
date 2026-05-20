@@ -77,7 +77,7 @@ VITE_API_BASE_URL=http://localhost:3000
 | 8 | 제품/프로젝트 Web 화면 | done | Task 4, 5, 6 | Task 9와 병렬 가능 |
 | 9 | 근거/외부 데이터 수집 기반 | done | Task 2, 3 | Task 8, 10과 병렬 가능 |
 | 10 | Vector 검색 기반 | done | Task 3, 9 | Task 11과 일부 병렬 가능 |
-| 11 | AI Provider Adapter와 추천 초안 | pending | Task 2, 5, 6, 9 | Task 10과 일부 병렬 가능 |
+| 11 | AI Provider Adapter와 추천 초안 | done | Task 2, 5, 6, 9 | Task 10과 일부 병렬 가능 |
 | 12 | 통합 검증, 배포 설정, 문서 정리 | pending | Task 1-11 | 단독 |
 
 병렬 처리 추천:
@@ -1327,7 +1327,7 @@ git commit -m "feat(api): add vector search foundation"
 
 ## 14. Task 11: AI Provider Adapter와 추천 초안
 
-**상태:** pending
+**상태:** done
 
 **Files:**
 
@@ -1338,32 +1338,37 @@ git commit -m "feat(api): add vector search foundation"
 - Create: `apps/api/src/ai/mock-ai.provider.ts`
 - Create: `apps/api/src/ai/recommendation.service.ts`
 - Create: `apps/api/src/ai/recommendation.controller.ts`
+- Create: `apps/api/src/ai/recommendation.service.spec.ts`
+- Modify: `apps/api/src/config/env.ts`
+- Modify: `.env.example`
 
 ### Steps
 
-- [ ] **Step 1: Task 상태를 in_progress로 변경**
+- [x] **Step 1: Task 상태를 in_progress로 변경**
 
-- [ ] **Step 2: AI SDK 설치**
+- [x] **Step 2: AI SDK 설치**
 
 Run:
 
 ```bash
-npm --workspace apps/api install openai @google/generative-ai
+npm --workspace apps/api install openai @google/genai
 ```
 
-- [ ] **Step 3: Provider 인터페이스 작성**
+`@google/genai`는 현재 Gemini 공식 JavaScript SDK 예시에 맞춘다.
+
+- [x] **Step 3: Provider 인터페이스 작성**
 
 `AiProvider`는 `generateText(prompt: string): Promise<string>` 하나로 시작한다.
 
-- [ ] **Step 4: Mock Provider 구현**
+- [x] **Step 4: Mock Provider 구현**
 
 키가 없어도 개발할 수 있도록 `AI_PROVIDER=mock`일 때 고정 추천 결과를 반환한다.
 
-- [ ] **Step 5: OpenAI/Gemini Provider 구현**
+- [x] **Step 5: OpenAI/Gemini Provider 구현**
 
 각 provider는 env에 키가 없으면 명확한 설정 오류를 던진다.
 
-- [ ] **Step 6: Recommendation Service 구현**
+- [x] **Step 6: Recommendation Service 구현**
 
 프로젝트 조건과 기준 처방을 받아 다음 후보를 만든다.
 
@@ -1374,13 +1379,13 @@ npm --workspace apps/api install openai @google/generative-ai
 - 콜마 특화 제형 후보
 - 기존 처방 최소 변경 후보
 
-- [ ] **Step 7: Controller 구현**
+- [x] **Step 7: Controller 구현**
 
 엔드포인트:
 
 - `POST /recommendations/draft-tries`
 
-- [ ] **Step 8: 테스트와 빌드**
+- [x] **Step 8: 테스트와 빌드**
 
 Run:
 
@@ -1388,7 +1393,14 @@ Run:
 npm run build:api
 ```
 
-- [ ] **Step 9: Commit**
+추가 검증:
+
+```bash
+npm --workspace apps/api test
+npm --workspace apps/api run lint
+```
+
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/api/src/ai apps/api/package.json package-lock.json docs/superpowers/plans/2026-05-20-kolma-poc-implementation-plan.md

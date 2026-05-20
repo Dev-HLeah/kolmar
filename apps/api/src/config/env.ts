@@ -12,9 +12,9 @@ export const envSchema = z.object({
   DIRECT_URL: z.string().optional(),
   AI_PROVIDER: z.enum(['openai', 'gemini', 'mock']).default('mock'),
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().default('gpt-4.1-mini'),
+  OPENAI_MODEL: z.string().default('gpt-5-mini'),
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default('gemini-1.5-flash'),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
 });
 
 export type Env = z.infer<typeof envSchema>;
