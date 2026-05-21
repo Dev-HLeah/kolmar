@@ -96,6 +96,30 @@
   padding: 0 16px 16px;
 }
 
+.view-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+
+.view-toggle button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.view-toggle button.active {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
 .try-add-form label {
   display: grid;
   gap: 6px;

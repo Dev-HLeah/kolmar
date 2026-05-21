@@ -61,9 +61,14 @@ export function ProjectDetailPage() {
   const [groupName, setGroupName] = useState(sampleGroupName)
   const [activeGroupId, setActiveGroupId] = useState(sampleGroupId)
   const [tries, setTries] = useState(initialTries)
+  const [tryFilter, setTryFilter] = useState<'all' | 'marked'>('all')
   const [tryTitle, setTryTitle] = useState('')
   const [notice, setNotice] = useState('')
   const markedCount = useMemo(() => tries.filter((item) => item.marked).length, [tries])
+  const visibleTries = useMemo(
+    () => (tryFilter === 'marked' ? tries.filter((item) => item.marked) : tries),
+    [tries, tryFilter],
+  )
   const maxTryNumber = useMemo(
     () => tries.reduce((highest, item) => Math.max(highest, item.id), 0),
     [tries],
@@ -220,6 +225,24 @@ export function ProjectDetailPage() {
           <h3>{groupName}</h3>
           <span>{trySummary}</span>
         </div>
+        <div className="view-toggle" aria-label="Try 보기 필터">
+          <button
+            type="button"
+            className={tryFilter === 'all' ? 'active' : ''}
+            aria-pressed={tryFilter === 'all'}
+            onClick={() => setTryFilter('all')}
+          >
+            전체 Try 보기
+          </button>
+          <button
+            type="button"
+            className={tryFilter === 'marked' ? 'active' : ''}
+            aria-pressed={tryFilter === 'marked'}
+            onClick={() => setTryFilter('marked')}
+          >
+            의미 있는 Try만 보기
+          </button>
+        </div>
         <div className="try-add-form">
           <label>
             Try 목적
@@ -241,7 +264,7 @@ export function ProjectDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {tries.map((item) => (
+              {visibleTries.map((item) => (
                 <tr key={item.id}>
                   <td>try#{item.id}</td>
                   <td>{item.title}</td>
@@ -266,6 +289,11 @@ export function ProjectDetailPage() {
                   </td>
                 </tr>
               ))}
+              {visibleTries.length === 0 ? (
+                <tr>
+                  <td colSpan={4}>마킹된 Try 없음</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

@@ -75,6 +75,28 @@ describe('ProjectDetailPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows marked tries as a project-level filtered view', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+    await user.click(screen.getByRole('button', { name: '의미 있는 Try만 보기' }))
+
+    expect(
+      screen.getByRole('row', { name: 'try#2 API 후보 마킹됨 try#2 마킹 try#2 삭제' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: 'try#1 기준 처방 일반 try#1 마킹 try#1 삭제' }))
+      .not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '전체 Try 보기' }))
+
+    expect(
+      screen.getByRole('row', { name: 'try#1 기준 처방 일반 try#1 마킹 try#1 삭제' }),
+    ).toBeInTheDocument()
+  })
+
   it('marks meaningful tries for project review', async () => {
     const user = userEvent.setup()
     mockProjectDetail()
