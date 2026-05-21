@@ -17,6 +17,11 @@ type ApiFormulaTry = {
   marks?: unknown[]
 }
 
+type ApiTryMark = {
+  id: string
+  type: string
+}
+
 type ApiExperimentGroup = {
   id: string
   name: string
@@ -109,10 +114,47 @@ export function ProjectDetailPage() {
     }
   }, [projectId])
 
-  function toggleMarked(id: number) {
-    setTries((current) =>
-      current.map((item) => (item.id === id ? { ...item, marked: !item.marked } : item)),
-    )
+  async function toggleMarked(id: number) {
+    const targetTry = tries.find((item) => item.id === id)
+
+    if (!targetTry) {
+      return
+    }
+
+    if (targetTry.marked) {
+      setTries((current) =>
+        current.map((item) => (item.id === id ? { ...item, marked: false } : item)),
+      )
+      setNotice(localOnlyNotice)
+      return
+    }
+
+    if (!targetTry.apiId) {
+      setTries((current) =>
+        current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
+      )
+      setNotice(localOnlyNotice)
+      return
+    }
+
+    try {
+      await apiPost<ApiTryMark, { type: 'PROMISING'; reason: string }>(
+        `/projects/tries/${targetTry.apiId}/marks`,
+        {
+          type: 'PROMISING',
+          reason: '의미 있는 시도로 마킹',
+        },
+      )
+      setTries((current) =>
+        current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
+      )
+      setNotice('')
+    } catch {
+      setTries((current) =>
+        current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
+      )
+      setNotice(localOnlyNotice)
+    }
   }
 
   async function addTry() {

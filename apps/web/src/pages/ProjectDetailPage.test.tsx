@@ -78,6 +78,11 @@ describe('ProjectDetailPage', () => {
   it('marks meaningful tries for project review', async () => {
     const user = userEvent.setup()
     mockProjectDetail()
+    apiPostMock.mockResolvedValueOnce({
+      id: 'api-mark-1',
+      tryId: 'api-try-1',
+      type: 'PROMISING',
+    })
 
     renderProjectDetail()
 
@@ -85,10 +90,28 @@ describe('ProjectDetailPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'try#1 마킹' }))
 
+    expect(apiPostMock).toHaveBeenCalledWith('/projects/tries/api-try-1/marks', {
+      type: 'PROMISING',
+      reason: '의미 있는 시도로 마킹',
+    })
     expect(screen.getByText('의미 있는 Try 2건')).toBeInTheDocument()
     expect(
       screen.getByRole('row', { name: 'try#1 기준 처방 마킹됨 try#1 마킹 try#1 삭제' }),
     ).toBeInTheDocument()
+  })
+
+  it('keeps a local mark when the mark API is unavailable', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+    apiPostMock.mockRejectedValueOnce(new Error('API offline'))
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+    await user.click(screen.getByRole('button', { name: 'try#1 마킹' }))
+
+    expect(screen.getByText('의미 있는 Try 2건')).toBeInTheDocument()
+    expect(screen.getByText('API 연결 실패로 로컬 화면에만 반영됐습니다.')).toBeInTheDocument()
   })
 
   it('lets researchers add and delete tries manually', async () => {
