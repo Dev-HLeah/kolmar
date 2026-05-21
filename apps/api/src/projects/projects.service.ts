@@ -1,12 +1,7 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { TryStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExperimentGroupDto } from './dto/create-experiment-group.dto';
-import { CreateFormulaTryBatchDto } from './dto/create-formula-try-batch.dto';
 import {
   CreateFormulaTryDto,
   CreateTryIngredientDto,
@@ -124,45 +119,6 @@ export class ProjectsService {
     });
   }
 
-  async createFormulaTryBatch(groupId: string, dto: CreateFormulaTryBatchDto) {
-    const count = toInteger(dto.count);
-    const startNumber = toInteger(dto.startNumber ?? 1);
-
-    if (count < 1 || count > 200) {
-      throw new BadRequestException('count must be between 1 and 200');
-    }
-
-    if (startNumber < 1) {
-      throw new BadRequestException('startNumber must be greater than 0');
-    }
-
-    const titlePrefix = cleanString(dto.titlePrefix);
-    const dosageForm = cleanString(dto.dosageForm);
-    const manufacturingProcess = cleanString(dto.manufacturingProcess);
-    const memo = cleanString(dto.memo);
-    const status = dto.status ?? TryStatus.PLANNED;
-    const operations = Array.from({ length: count }, (_, index) => {
-      const tryNumber = startNumber + index;
-
-      return this.prisma.formulaTry.create({
-        data: {
-          groupId,
-          tryNumber,
-          status,
-          title: titlePrefix
-            ? `${titlePrefix} #${tryNumber}`
-            : `try#${tryNumber}`,
-          dosageForm,
-          manufacturingProcess,
-          memo,
-        },
-        include: formulaTryInclude,
-      });
-    });
-
-    return this.prisma.$transaction(operations);
-  }
-
   createTryTestResult(tryId: string, dto: CreateTestResultDto) {
     return this.prisma.tryTestResult.create({
       data: {
@@ -184,6 +140,15 @@ export class ProjectsService {
         type: dto.type,
         reason: cleanString(dto.reason),
       },
+    });
+  }
+
+  deleteFormulaTry(tryId: string) {
+    return this.prisma.formulaTry.delete({
+      where: {
+        id: tryId,
+      },
+      include: formulaTryInclude,
     });
   }
 
@@ -247,12 +212,4 @@ function cleanScalar(value?: number | string | null) {
 
   const normalized = String(value).trim();
   return normalized ? normalized : undefined;
-}
-
-function toInteger(value?: number | string | null) {
-  if (value === null || value === undefined || value === '') {
-    return 0;
-  }
-
-  return Number.parseInt(String(value), 10);
 }

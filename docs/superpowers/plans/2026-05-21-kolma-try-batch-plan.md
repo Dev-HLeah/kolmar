@@ -10,7 +10,7 @@
 
 ### S4. Formula try batch pre-listing API
 
-- Status: done
+- Status: superseded
 - Goal: Add an API endpoint that creates a contiguous list of planned tries for an experiment group.
 - API:
   - `POST /projects/groups/:groupId/tries/batch`
@@ -34,3 +34,9 @@
   - `npm run test:api:e2e` passed.
   - `npm run build:api` passed.
   - `npm --workspace apps/api run lint` passed.
+
+## Superseded Note
+
+- 2026-05-21: The user clarified that project creation must not prefill `try#1` through `try#100`.
+- The batch endpoint from this work unit was removed by S6.
+- The current workflow is manual try add/delete inside a project group.

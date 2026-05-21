@@ -1,6 +1,6 @@
 import { ProjectsService } from './projects.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { TryMarkType, TryStatus } from '@prisma/client';
+import { TryMarkType } from '@prisma/client';
 
 describe('ProjectsService', () => {
   const prisma = {
@@ -14,6 +14,7 @@ describe('ProjectsService', () => {
     },
     formulaTry: {
       create: jest.fn(),
+      delete: jest.fn(),
       findMany: jest.fn(),
     },
     $transaction: jest.fn(),
@@ -78,70 +79,19 @@ describe('ProjectsService', () => {
     );
   });
 
-  it('creates planned formula tries in a contiguous batch', async () => {
-    const createdTries = [
-      { id: 'try-3', groupId: 'group-1', tryNumber: 3 },
-      { id: 'try-4', groupId: 'group-1', tryNumber: 4 },
-      { id: 'try-5', groupId: 'group-1', tryNumber: 5 },
-    ];
-    const transactionInputs: unknown[] = [];
-    prisma.formulaTry.create.mockImplementation((input) => {
-      transactionInputs.push(input);
-      return input as never;
+  it('deletes one formula try when the user removes it from a group', async () => {
+    const deletedTry = { id: 'try-1', groupId: 'group-1', tryNumber: 1 };
+    prisma.formulaTry.delete.mockResolvedValue(deletedTry);
+
+    const result = await service.deleteFormulaTry('try-1');
+
+    expect(result).toBe(deletedTry);
+    expect(prisma.formulaTry.delete).toHaveBeenCalledWith({
+      where: {
+        id: 'try-1',
+      },
+      include: expect.any(Object),
     });
-    prisma.$transaction.mockResolvedValue(createdTries);
-
-    const result = await service.createFormulaTryBatch('group-1', {
-      count: 3,
-      startNumber: 3,
-      titlePrefix: '신물 억제 후보',
-      dosageForm: '츄어블 정제',
-    });
-
-    expect(result).toBe(createdTries);
-    expect(prisma.formulaTry.create).toHaveBeenCalledTimes(3);
-    expect(transactionInputs).toEqual([
-      expect.objectContaining({
-        data: expect.objectContaining({
-          groupId: 'group-1',
-          tryNumber: 3,
-          status: TryStatus.PLANNED,
-          title: '신물 억제 후보 #3',
-          dosageForm: '츄어블 정제',
-        }),
-        include: expect.any(Object),
-      }),
-      expect.objectContaining({
-        data: expect.objectContaining({
-          groupId: 'group-1',
-          tryNumber: 4,
-          status: TryStatus.PLANNED,
-          title: '신물 억제 후보 #4',
-        }),
-        include: expect.any(Object),
-      }),
-      expect.objectContaining({
-        data: expect.objectContaining({
-          groupId: 'group-1',
-          tryNumber: 5,
-          status: TryStatus.PLANNED,
-          title: '신물 억제 후보 #5',
-        }),
-        include: expect.any(Object),
-      }),
-    ]);
-    expect(prisma.$transaction).toHaveBeenCalledWith(transactionInputs);
-  });
-
-  it('rejects invalid formula try batch counts', async () => {
-    await expect(
-      service.createFormulaTryBatch('group-1', {
-        count: 0,
-      }),
-    ).rejects.toThrow('count must be between 1 and 200');
-
-    expect(prisma.formulaTry.create).not.toHaveBeenCalled();
-    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('creates a test result with only try id required', async () => {
