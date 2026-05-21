@@ -11,16 +11,22 @@ React + NestJS + Prisma + Supabase 기반 건강기능식품 AI 배합 설계 Po
 
 ```bash
 npm install
-cp .env.example .env
-npm run dev:api
-npm run dev:web
+cp .env.dev.example .env.dev
+npm run dev:api:dev
+npm run dev:web:dev
 ```
 
 초기 개발은 `AI_PROVIDER=mock`으로 실행할 수 있습니다. Supabase 연결 전에도 schema validate, API 테스트, 웹 화면 검증은 가능합니다.
 
 ## Environment Values
 
-`.env`는 저장소에 커밋하지 않습니다. 필요한 값은 `.env.example`에 형식만 유지합니다.
+실제 env 파일은 저장소에 커밋하지 않습니다.
+
+- 개발 입력 파일: `.env.dev`
+- 운영 로컬 확인 파일: `.env.prd`
+- 커밋되는 형식 파일: `.env.dev.example`, `.env.prd.example`
+
+API와 Prisma는 기본으로 `.env.dev`를 읽습니다. 운영 로컬 확인은 `APP_ENV=prd`로 실행하면 `.env.prd`를 읽습니다. Web은 Vite mode에 따라 루트의 `.env.dev`, `.env.prd`를 읽습니다.
 
 Supabase:
 
@@ -37,6 +43,9 @@ AI provider:
 - `OPENAI_MODEL`
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL`
+- 개발 초기는 `AI_PROVIDER=mock`
+- OpenAI 사용 시 `AI_PROVIDER=openai`, `OPENAI_API_KEY` 입력
+- Gemini 사용 시 `AI_PROVIDER=gemini`, `GEMINI_API_KEY` 입력
 
 Frontend:
 
@@ -49,8 +58,6 @@ Frontend:
 Prisma schema는 `apps/api/prisma/schema.prisma`에 있습니다.
 
 ```bash
-DATABASE_URL="postgresql://user:pass@localhost:5432/kolma" \
-DIRECT_URL="postgresql://user:pass@localhost:5432/kolma" \
 npm --workspace apps/api run prisma:validate
 ```
 
@@ -63,14 +70,24 @@ create extension if not exists vector;
 실제 migration은 Supabase `DATABASE_URL`, `DIRECT_URL` 입력 후 실행합니다.
 
 ```bash
-npm --workspace apps/api run prisma:migrate
+APP_ENV=dev npm --workspace apps/api run prisma:generate
+APP_ENV=dev npm --workspace apps/api run prisma:migrate
+```
+
+운영 DB에 migration을 적용해야 하는 경우에는 먼저 `.env.prd` 값을 확인한 뒤 명시적으로 실행합니다.
+
+```bash
+APP_ENV=prd npm --workspace apps/api run prisma:migrate
 ```
 
 ## Development Commands
 
 ```bash
+npm run dev:api:dev
+npm run dev:web:dev
 npm run build:api
 npm run build:web
+npm run build:web:prd
 npm run test:api
 npm run test:api:e2e
 npm --workspace apps/api run lint

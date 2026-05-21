@@ -3,6 +3,10 @@ docs/.DS_Store
 docs/request/
 .env
 .env.local
+.env.dev
+.env.prd
+.env.test
+.env.*.local
 .idea/
 node_modules/
 dist/
