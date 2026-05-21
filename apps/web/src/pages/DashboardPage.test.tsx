@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiPost } from '../api/client'
 import { DashboardPage } from './DashboardPage'
@@ -14,6 +15,14 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     apiPostMock.mockReset()
   })
+
+  function renderDashboard() {
+    return render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>,
+    )
+  }
 
   it('requests draft try recommendations from formula inputs', async () => {
     const user = userEvent.setup()
@@ -30,7 +39,7 @@ describe('DashboardPage', () => {
       ],
     })
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     await user.type(screen.getByLabelText('원료명 1'), '비타민 C')
     await user.type(screen.getByLabelText('함량 1'), '500')
@@ -91,7 +100,7 @@ describe('DashboardPage', () => {
       ],
     })
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     await user.type(screen.getByLabelText('원료명 1'), '아연')
     await user.type(screen.getByLabelText('함량 1'), '45')
@@ -102,13 +111,17 @@ describe('DashboardPage', () => {
     expect(screen.getByText('아연 45mg 입력값은 일일 섭취량 상한 검토가 필요합니다.')).toBeInTheDocument()
     expect(screen.getByText('rule-of-thumb')).toBeInTheDocument()
     expect(screen.getByText('아연')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '상한 섭취량 검토 근거 검색' })).toHaveAttribute(
+      'href',
+      '/knowledge?q=%EC%95%84%EC%97%B0',
+    )
   })
 
   it('shows local recommendation candidates when the API is unavailable', async () => {
     const user = userEvent.setup()
     apiPostMock.mockRejectedValueOnce(new Error('API offline'))
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     await user.type(screen.getByLabelText('원료명 1'), '아연')
     await user.click(screen.getByRole('button', { name: 'AI 후보 Try 생성' }))
@@ -118,5 +131,9 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('heading', { name: '안전/규제 신호' })).toBeInTheDocument()
     expect(screen.getByText('상한 섭취량 검토')).toBeInTheDocument()
     expect(screen.getByText('아연')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '상한 섭취량 검토 근거 검색' })).toHaveAttribute(
+      'href',
+      '/knowledge?q=%EC%95%84%EC%97%B0',
+    )
   })
 })

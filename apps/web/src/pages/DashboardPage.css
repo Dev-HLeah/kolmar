@@ -254,6 +254,14 @@
   gap: 6px;
 }
 
+.signal-evidence-link {
+  width: fit-content;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .candidate-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

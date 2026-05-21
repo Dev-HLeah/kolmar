@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './DashboardPage.css'
@@ -226,6 +227,13 @@ export function DashboardPage() {
                         <span key={ingredient}>{ingredient}</span>
                       ))}
                     </div>
+                    <Link
+                      aria-label={`${signal.label} 근거 검색`}
+                      className="signal-evidence-link"
+                      to={toEvidenceSearchPath(signal)}
+                    >
+                      근거 검색
+                    </Link>
                   </article>
                 ))}
               </div>
@@ -338,4 +346,13 @@ function isVitaminCInput(ingredient: FormulaIngredientInput) {
 
 function includesText(value: string | null, keyword: string) {
   return value?.toLowerCase().includes(keyword.toLowerCase()) ?? false
+}
+
+function toEvidenceSearchPath(signal: SafetySignal) {
+  const query = signal.relatedIngredients
+    .map((ingredient) => ingredient.trim())
+    .filter(Boolean)
+    .join(' ')
+
+  return `/knowledge?q=${encodeURIComponent(query || signal.label)}`
 }
