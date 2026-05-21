@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import './FormulaInputTable.css'
 
 export type FormulaRow = {
@@ -21,7 +22,24 @@ const emptyRow: FormulaRow = {
   note: '',
 }
 
+const voiceDraftRows = [
+  {
+    ingredientName: '테아닌',
+    amount: '200',
+    unit: 'mg',
+    status: '원료 후보 확인',
+  },
+  {
+    ingredientName: '아연',
+    amount: '8',
+    unit: 'mg',
+    status: '원료 후보 확인',
+  },
+]
+
 export function FormulaInputTable({ rows, onChange }: Props) {
+  const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false)
+
   function updateRow(index: number, key: keyof FormulaRow, value: string) {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)))
   }
@@ -47,7 +65,14 @@ export function FormulaInputTable({ rows, onChange }: Props) {
           <p>원료별 함량, 비율, 메모를 선택적으로 기록</p>
         </div>
         <div className="formula-actions">
-          <button type="button" className="secondary-button" disabled aria-label="음성 입력">
+          <button
+            type="button"
+            className="secondary-button"
+            aria-label="음성 입력"
+            aria-expanded={isVoicePanelOpen}
+            aria-controls="voice-draft-panel"
+            onClick={() => setIsVoicePanelOpen((current) => !current)}
+          >
             음성 입력
           </button>
           <button type="button" className="primary-button" onClick={addRow}>
@@ -55,6 +80,45 @@ export function FormulaInputTable({ rows, onChange }: Props) {
           </button>
         </div>
       </div>
+
+      {isVoicePanelOpen ? (
+        <section
+          id="voice-draft-panel"
+          className="voice-draft-panel"
+          aria-labelledby="voice-draft-title"
+        >
+          <div className="voice-draft-heading">
+            <div>
+              <h3 id="voice-draft-title">음성 입력 초안</h3>
+              <p>테아닌 200 밀리그램, 아연 8 밀리그램 추가</p>
+            </div>
+            <span>설계 모드</span>
+          </div>
+          <div className="voice-draft-grid">
+            <table>
+              <thead>
+                <tr>
+                  <th>원료명</th>
+                  <th>함량</th>
+                  <th>단위</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {voiceDraftRows.map((draftRow) => (
+                  <tr key={draftRow.ingredientName}>
+                    <td>{draftRow.ingredientName}</td>
+                    <td>{draftRow.amount}</td>
+                    <td>{draftRow.unit}</td>
+                    <td>{draftRow.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="voice-draft-notice">연구자가 확인한 뒤 배합표에 반영됩니다.</p>
+        </section>
+      ) : null}
 
       <div className="formula-table-wrap">
         <table className="formula-table">

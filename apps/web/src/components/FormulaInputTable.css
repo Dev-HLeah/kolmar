@@ -71,6 +71,79 @@
   background: var(--danger-soft);
 }
 
+.voice-draft-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.voice-draft-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.voice-draft-heading h3 {
+  color: var(--heading);
+  font-size: 15px;
+  line-height: 130%;
+}
+
+.voice-draft-heading p,
+.voice-draft-notice {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 150%;
+}
+
+.voice-draft-heading span {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.voice-draft-grid {
+  overflow-x: auto;
+}
+
+.voice-draft-grid table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+}
+
+.voice-draft-grid th,
+.voice-draft-grid td {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+}
+
+.voice-draft-grid th {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 12px;
+}
+
+.voice-draft-notice {
+  margin-top: 0;
+  font-weight: 700;
+}
+
 .formula-table-wrap {
   overflow-x: auto;
 }
@@ -141,5 +214,9 @@
   .formula-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .voice-draft-heading {
+    flex-direction: column;
   }
 }
