@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { apiPost } from '../api/client'
+import { apiGet, apiPost } from '../api/client'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './WorkflowPages.css'
 
@@ -40,6 +40,7 @@ const seededProducts: ProductDraft[] = [
 ]
 
 const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
+const listFallbackNotice = 'API 연결 실패로 샘플 제품 목록을 표시합니다.'
 
 export function ProductsPage() {
   const [name, setName] = useState('')
@@ -55,6 +56,36 @@ export function ProductsPage() {
     () => rows.filter((row) => row.ingredientName.trim()).length,
     [rows],
   )
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadProducts() {
+      try {
+        const apiProducts = await apiGet<ApiProduct[]>('/products')
+
+        if (!isActive) {
+          return
+        }
+
+        setProducts(apiProducts.map((product) => toProductDraft(product)))
+        setNotice('')
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setProducts(seededProducts)
+        setNotice(listFallbackNotice)
+      }
+    }
+
+    void loadProducts()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -98,16 +129,7 @@ export function ProductsPage() {
         ingredients,
       })
 
-      const createdFormula = createdProduct.formulas?.[0]
-      const nextProduct: ProductDraft = {
-        id: createdProduct.id,
-        name: createdProduct.name,
-        function: createdProduct.function?.trim() || draftProduct.function,
-        dosageForm: createdProduct.dosageForm?.name?.trim() || draftProduct.dosageForm,
-        ingredientCount: createdFormula?.ingredients?.length ?? draftProduct.ingredientCount,
-      }
-
-      setProducts((current) => [nextProduct, ...current])
+      setProducts((current) => [toProductDraft(createdProduct, draftProduct), ...current])
       setNotice('')
     } catch {
       setProducts((current) => [draftProduct, ...current])
@@ -218,4 +240,16 @@ export function ProductsPage() {
 function nullableText(value?: string | null) {
   const normalized = value?.trim()
   return normalized ? normalized : null
+}
+
+function toProductDraft(product: ApiProduct, fallback?: ProductDraft): ProductDraft {
+  const createdFormula = product.formulas?.[0]
+
+  return {
+    id: product.id,
+    name: product.name,
+    function: product.function?.trim() || fallback?.function || '기능성 미입력',
+    dosageForm: product.dosageForm?.name?.trim() || fallback?.dosageForm || '제형 미입력',
+    ingredientCount: createdFormula?.ingredients?.length ?? fallback?.ingredientCount ?? 0,
+  }
 }
