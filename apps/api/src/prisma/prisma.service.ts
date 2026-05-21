@@ -5,8 +5,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 const LOCAL_FALLBACK_DATABASE_URL =
   'postgresql://user:pass@localhost:5432/kolma';
 
-function resolveDatabaseUrl() {
-  const configuredUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+export function resolveDatabaseUrl() {
+  const configuredUrl = process.env.DATABASE_URL || process.env.DIRECT_URL;
 
   return {
     connectionString: configuredUrl ?? LOCAL_FALLBACK_DATABASE_URL,

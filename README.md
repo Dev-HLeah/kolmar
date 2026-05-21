@@ -36,6 +36,8 @@ Supabase:
 - `DATABASE_URL`
 - `DIRECT_URL`
 
+로컬에서 `db.<project-ref>.supabase.co` direct host가 DNS 해석되지 않으면 `DIRECT_URL`도 Supabase pooler URL로 입력합니다. 현재 Prisma CLI는 migration 실행 시 `DIRECT_URL`을 우선 사용하고, API 런타임은 `DATABASE_URL`을 우선 사용합니다.
+
 AI provider:
 
 - `AI_PROVIDER`: `mock`, `openai`, `gemini`

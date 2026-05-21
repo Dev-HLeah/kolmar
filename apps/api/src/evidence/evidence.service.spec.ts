@@ -51,14 +51,14 @@ describe('Evidence services', () => {
     });
 
     expect(result).toBe(item);
-    expect(prisma.evidenceSource.create).toHaveBeenCalledWith({
+    expect(prisma.evidenceSource.create.mock.calls[0][0]).toEqual({
       data: {
         name: 'MFDS',
         type: 'open_api',
         baseUrl: 'https://example.test',
       },
     });
-    expect(prisma.evidenceItem.create).toHaveBeenCalledWith(
+    expect(prisma.evidenceItem.create.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         data: expect.objectContaining({
           sourceId: 'source-1',
@@ -90,7 +90,7 @@ describe('Evidence services', () => {
     });
 
     expect(result).toBe(importJob);
-    expect(prisma.dataImportJob.create).toHaveBeenCalledWith({
+    expect(prisma.dataImportJob.create.mock.calls[0][0]).toEqual({
       data: {
         sourceName: 'MFDS OpenAPI',
         status: 'IMPORTED',
@@ -135,7 +135,7 @@ describe('Evidence services', () => {
     const result = await importJobsService.findImportJobs();
 
     expect(result).toBe(importJobs);
-    expect(prisma.dataImportJob.findMany).toHaveBeenCalledWith({
+    expect(prisma.dataImportJob.findMany.mock.calls[0][0]).toEqual({
       orderBy: {
         startedAt: 'desc',
       },
