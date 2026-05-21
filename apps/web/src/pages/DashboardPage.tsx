@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { apiPost } from '../api/client'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './DashboardPage.css'
 
@@ -25,8 +26,68 @@ const kolmarForms = [
   'Multi PTP',
 ]
 
+const dosageFormLabels: Record<string, string> = {
+  tablet: '정제',
+  powder: '분말',
+}
+
+const localRecommendationNotice = 'API 연결 실패로 로컬 후보 초안을 표시합니다.'
+
+type DraftTryCandidate = {
+  title: string
+  objective: string
+  suggestedChanges: string[]
+  riskChecks: string[]
+}
+
+type DraftTryRecommendation = {
+  projectName: string
+  safetyNotice: string
+  candidates: DraftTryCandidate[]
+}
+
 export function DashboardPage() {
   const [rows, setRows] = useState(initialRows)
+  const [groupName, setGroupName] = useState('')
+  const [targetFunction, setTargetFunction] = useState('')
+  const [dosageForm, setDosageForm] = useState('tablet')
+  const [recommendation, setRecommendation] = useState<DraftTryRecommendation | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+
+  async function handleCreateDraftTries() {
+    const payload = {
+      projectName: nullableText(groupName),
+      targetFunction: nullableText(targetFunction),
+      dosageForm: dosageFormLabels[dosageForm],
+      constraints: [],
+      evidenceContext: [],
+      sourceFormula: {
+        ingredients: rows
+          .map((row) => ({
+            ingredientName: row.ingredientName.trim(),
+            amount: nullableText(row.amount),
+            unit: nullableText(row.unit),
+            ratio: nullableText(row.ratio),
+            note: nullableText(row.note),
+          }))
+          .filter((row) => row.ingredientName.length > 0),
+      },
+    }
+
+    setIsGenerating(true)
+
+    try {
+      const result = await apiPost<DraftTryRecommendation, typeof payload>(
+        '/recommendations/draft-tries',
+        payload,
+      )
+      setRecommendation(result)
+    } catch {
+      setRecommendation(createLocalRecommendation(payload.sourceFormula.ingredients))
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   return (
     <div className="dashboard-page">
@@ -74,7 +135,19 @@ export function DashboardPage() {
           <div className="try-defaults">
             <label>
               그룹명
-              <input placeholder="예: 신물 억제" />
+              <input
+                value={groupName}
+                onChange={(event) => setGroupName(event.target.value)}
+                placeholder="예: 신물 억제"
+              />
+            </label>
+            <label>
+              목표 기능
+              <input
+                value={targetFunction}
+                onChange={(event) => setTargetFunction(event.target.value)}
+                placeholder="예: 위 건강"
+              />
             </label>
             <label>
               생성 개수
@@ -82,14 +155,83 @@ export function DashboardPage() {
             </label>
             <label>
               기준 제형
-              <select defaultValue="tablet">
+              <select value={dosageForm} onChange={(event) => setDosageForm(event.target.value)}>
                 <option value="tablet">정제</option>
                 <option value="powder">분말</option>
               </select>
             </label>
+            <button
+              type="button"
+              className="primary-dashboard-button"
+              onClick={handleCreateDraftTries}
+              disabled={isGenerating}
+            >
+              {isGenerating ? 'AI 후보 생성 중' : 'AI 후보 Try 생성'}
+            </button>
           </div>
         </div>
       </section>
+
+      {recommendation ? (
+        <section className="recommendation-panel" aria-label="AI 후보 Try 초안">
+          <div className="panel-heading">
+            <div>
+              <h3>AI 후보 Try 초안</h3>
+              <p>{recommendation.projectName}</p>
+            </div>
+            <span>{recommendation.candidates.length}개 후보</span>
+          </div>
+          <p className="safety-notice">{recommendation.safetyNotice}</p>
+          <div className="candidate-grid">
+            {recommendation.candidates.map((candidate) => (
+              <article className="candidate-card" key={candidate.title}>
+                <h4>{candidate.title}</h4>
+                <p>{candidate.objective}</p>
+                <div>
+                  <strong>변경 후보</strong>
+                  <ul>
+                    {candidate.suggestedChanges.map((change) => (
+                      <li key={change}>{change}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <strong>위험 확인</strong>
+                  <ul>
+                    {candidate.riskChecks.map((check) => (
+                      <li key={check}>{check}</li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
+}
+
+function nullableText(value: string) {
+  const normalized = value.trim()
+  return normalized ? normalized : null
+}
+
+function createLocalRecommendation(
+  ingredients: Array<{ ingredientName: string }>,
+): DraftTryRecommendation {
+  const ingredientNames = ingredients.map((ingredient) => ingredient.ingredientName).join(', ') || '입력 원료'
+
+  return {
+    projectName: '로컬 후보 초안',
+    safetyNotice: localRecommendationNotice,
+    candidates: [
+      {
+        title: '안정성 우선 로컬 후보',
+        objective: 'API 연결 전에도 독성, 상한, 상호작용 확인 흐름을 먼저 잡는다.',
+        suggestedChanges: [ingredientNames, '증량은 보류하고 기준 함량부터 검토'],
+        riskChecks: ['일일 섭취량 상한', '원료 간 상호작용', '제형별 안정성'],
+      },
+    ],
+  }
 }
