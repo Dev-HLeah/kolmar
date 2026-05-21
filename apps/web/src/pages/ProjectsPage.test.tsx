@@ -1,12 +1,35 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { apiPost } from '../api/client'
 import { ProjectsPage } from './ProjectsPage'
 
+vi.mock('../api/client', () => ({
+  apiPost: vi.fn(),
+}))
+
+const apiPostMock = vi.mocked(apiPost)
+
 describe('ProjectsPage', () => {
-  it('creates a project without pre-filling tries', async () => {
+  beforeEach(() => {
+    apiPostMock.mockReset()
+  })
+
+  it('creates a project and initial group without pre-filling tries', async () => {
     const user = userEvent.setup()
+    apiPostMock
+      .mockResolvedValueOnce({
+        id: 'project-api-1',
+        name: '위 건강 정제',
+        sourceProductId: 'sample-1',
+      })
+      .mockResolvedValueOnce({
+        id: 'group-api-1',
+        name: '신물 억제',
+        tries: [],
+      })
+
     render(
       <MemoryRouter>
         <ProjectsPage />
@@ -18,8 +41,42 @@ describe('ProjectsPage', () => {
     await user.type(screen.getByLabelText('프로젝트명'), '위 건강 정제')
     await user.click(screen.getByRole('button', { name: '프로젝트 생성' }))
 
+    expect(apiPostMock).toHaveBeenNthCalledWith(1, '/projects', {
+      name: '위 건강 정제',
+      goal: null,
+      target: null,
+      function: null,
+      desiredForm: '정제',
+      costRange: null,
+      excludedIngredients: null,
+      sourceProductId: 'sample-1',
+      sourceFormulaId: null,
+    })
+    expect(apiPostMock).toHaveBeenNthCalledWith(2, '/projects/project-api-1/groups', {
+      name: '신물 억제',
+      purpose: null,
+    })
     expect(
       screen.getByRole('row', { name: '위 건강 정제 콜마 고형제 기준 처방 신물 억제 0개' }),
     ).toBeInTheDocument()
+  })
+
+  it('keeps a local project draft when the API is unavailable', async () => {
+    const user = userEvent.setup()
+    apiPostMock.mockRejectedValueOnce(new Error('API offline'))
+
+    render(
+      <MemoryRouter>
+        <ProjectsPage />
+      </MemoryRouter>,
+    )
+
+    await user.type(screen.getByLabelText('프로젝트명'), '로컬 프로젝트')
+    await user.click(screen.getByRole('button', { name: '프로젝트 생성' }))
+
+    expect(
+      screen.getByRole('row', { name: '로컬 프로젝트 콜마 고형제 기준 처방 신물 억제 0개' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('API 연결 실패로 로컬 화면에만 반영됐습니다.')).toBeInTheDocument()
   })
 })
