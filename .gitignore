@@ -3,6 +3,7 @@ docs/.DS_Store
 docs/request/
 .env
 .env.local
+.idea/
 node_modules/
 dist/
 coverage/
