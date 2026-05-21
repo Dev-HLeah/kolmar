@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { RequireRoles } from '../auth/roles.decorator';
+import { UserRole } from '../auth/user-role';
 import { CreateExperimentGroupDto } from './dto/create-experiment-group.dto';
 import { CreateFormulaTryDto } from './dto/create-formula-try.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -11,6 +13,7 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createProject(@Body() dto: CreateProjectDto) {
     return this.projectsService.createProject(dto);
   }
@@ -31,6 +34,7 @@ export class ProjectsController {
   }
 
   @Post(':projectId/groups')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createExperimentGroup(
     @Param('projectId') projectId: string,
     @Body() dto: CreateExperimentGroupDto,
@@ -39,6 +43,7 @@ export class ProjectsController {
   }
 
   @Post('groups/:groupId/tries')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createFormulaTry(
     @Param('groupId') groupId: string,
     @Body() dto: CreateFormulaTryDto,
@@ -47,6 +52,7 @@ export class ProjectsController {
   }
 
   @Post('tries/:tryId/test-results')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createTryTestResult(
     @Param('tryId') tryId: string,
     @Body() dto: CreateTestResultDto,
@@ -55,6 +61,7 @@ export class ProjectsController {
   }
 
   @Post('tries/:tryId/marks')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createTryMark(@Param('tryId') tryId: string, @Body() dto: CreateTryMarkDto) {
     return this.projectsService.createTryMark(tryId, dto);
   }

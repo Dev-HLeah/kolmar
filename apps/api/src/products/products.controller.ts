@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { RequireRoles } from '../auth/roles.decorator';
+import { UserRole } from '../auth/user-role';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductsService } from './products.service';
 
@@ -7,6 +9,7 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createProduct(@Body() dto: CreateProductDto) {
     return this.productsService.createProduct(dto);
   }

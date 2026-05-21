@@ -34,6 +34,7 @@ describe('Kolma API smoke (e2e)', () => {
   it('creates mock draft try recommendations without external AI keys', async () => {
     const response = await request(app.getHttpServer())
       .post('/recommendations/draft-tries')
+      .set('x-user-role', 'researcher')
       .send({
         projectName: 'solid dosage smoke project',
         targetFunction: 'digestive comfort',
@@ -66,5 +67,24 @@ describe('Kolma API smoke (e2e)', () => {
       }),
     );
     expect(response.body.candidates).toHaveLength(6);
+  });
+
+  it('rejects viewer mutation requests', () => {
+    return request(app.getHttpServer())
+      .post('/recommendations/draft-tries')
+      .set('x-user-role', 'viewer')
+      .send({
+        projectName: 'readonly smoke project',
+      })
+      .expect(403);
+  });
+
+  it('treats missing roles as viewer access for mutation requests', () => {
+    return request(app.getHttpServer())
+      .post('/recommendations/draft-tries')
+      .send({
+        projectName: 'missing role smoke project',
+      })
+      .expect(403);
   });
 });

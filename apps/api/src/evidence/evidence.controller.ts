@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
+import { RequireRoles } from '../auth/roles.decorator';
+import { UserRole } from '../auth/user-role';
 import { CreateEvidenceItemDto } from './dto/create-evidence-item.dto';
 import { CreateEvidenceLinkDto } from './dto/create-evidence-link.dto';
 import { CreateEvidenceSourceDto } from './dto/create-evidence-source.dto';
@@ -14,6 +16,7 @@ export class EvidenceController {
   ) {}
 
   @Post('sources')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createSource(@Body() dto: CreateEvidenceSourceDto) {
     return this.evidenceService.createSource(dto);
   }
@@ -24,6 +27,7 @@ export class EvidenceController {
   }
 
   @Post('items')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createItem(@Body() dto: CreateEvidenceItemDto) {
     return this.evidenceService.createItem(dto);
   }
@@ -34,11 +38,13 @@ export class EvidenceController {
   }
 
   @Post('links')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createLink(@Body() dto: CreateEvidenceLinkDto) {
     return this.evidenceService.createLink(dto);
   }
 
   @Post('import-jobs')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createImportJob(@Body() dto: CreateImportJobDto) {
     return this.importJobsService.createImportJob(dto);
   }
