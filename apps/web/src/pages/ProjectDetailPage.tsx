@@ -117,6 +117,11 @@ type ApiProject = {
   groups?: ApiExperimentGroup[]
 }
 
+type ApiCreatedProduct = {
+  id: string
+  name: string
+}
+
 const sampleGroupId = 'sample-group'
 const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
 const fallbackNotice = 'API 연결 실패로 샘플 프로젝트를 표시합니다.'
@@ -271,6 +276,9 @@ export function ProjectDetailPage() {
   const [unit, setUnit] = useState('')
   const [judgment, setJudgment] = useState('')
   const [resultMemo, setResultMemo] = useState('')
+  const [productTryNumber, setProductTryNumber] = useState('')
+  const [productName, setProductName] = useState('')
+  const [productPackagingName, setProductPackagingName] = useState('')
   const [notice, setNotice] = useState('')
   const activeGroup = useMemo(
     () => groups.find((group) => group.id === activeGroupId) ?? groups[0],
@@ -317,6 +325,12 @@ export function ProjectDetailPage() {
   const selectedResultTry = useMemo(
     () => tries.find((item) => item.id === effectiveResultTryNumber?.id),
     [effectiveResultTryNumber, tries],
+  )
+  const effectiveProductTryNumber =
+    tries.find((item) => String(item.id) === productTryNumber) ?? tries[0]
+  const selectedProductTry = useMemo(
+    () => tries.find((item) => item.id === effectiveProductTryNumber?.id),
+    [effectiveProductTryNumber, tries],
   )
   const testResultRows = useMemo(
     () =>
@@ -379,6 +393,7 @@ export function ProjectDetailPage() {
         setActiveGroupId(nextActiveGroup.id)
         setEditTryNumber(nextActiveGroup.tries[0] ? String(nextActiveGroup.tries[0].id) : '')
         setResultTryNumber('')
+        setProductTryNumber('')
         setStatusFilter('all')
         setMarkedTypeFilter('all')
         syncEditForm(nextActiveGroup.tries[0])
@@ -394,6 +409,7 @@ export function ProjectDetailPage() {
         setActiveGroupId(sampleGroupId)
         setEditTryNumber(String(initialTries[0].id))
         setResultTryNumber('')
+        setProductTryNumber('')
         setStatusFilter('all')
         setMarkedTypeFilter('all')
         syncEditForm(initialTries[0])
@@ -422,6 +438,7 @@ export function ProjectDetailPage() {
     setStatusFilter('all')
     setEditTryNumber(group.tries[0] ? String(group.tries[0].id) : '')
     setResultTryNumber('')
+    setProductTryNumber('')
     syncEditForm(group.tries[0])
   }
 
@@ -453,6 +470,7 @@ export function ProjectDetailPage() {
       setActiveGroupId(newGroup.id)
       setEditTryNumber('')
       setResultTryNumber('')
+      setProductTryNumber('')
       syncEditForm(undefined)
       setNotice('')
     } catch {
@@ -467,6 +485,7 @@ export function ProjectDetailPage() {
       setActiveGroupId(newGroup.id)
       setEditTryNumber('')
       setResultTryNumber('')
+      setProductTryNumber('')
       syncEditForm(undefined)
       setNotice(localOnlyNotice)
     }
@@ -656,6 +675,39 @@ export function ProjectDetailPage() {
       setNotice('테스트 결과가 등록됐습니다.')
     } catch {
       appendTestResult(selectedResultTry.id, toLocalTestResult())
+      setNotice(localOnlyNotice)
+    }
+  }
+
+  async function registerProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!selectedProductTry) {
+      return
+    }
+
+    const payload = {
+      name: productName.trim() || defaultProductName(projectName, selectedProductTry),
+      packagingName: nullableText(productPackagingName),
+      formulaVersion: `try#${selectedProductTry.id}`,
+      formulaNote: nullableText(selectedProductTry.memo),
+    }
+
+    if (!selectedProductTry.apiId) {
+      setNotice(localOnlyNotice)
+      return
+    }
+
+    try {
+      const createdProduct = await apiPost<ApiCreatedProduct, typeof payload>(
+        `/projects/tries/${selectedProductTry.apiId}/product`,
+        payload,
+      )
+
+      setProductName('')
+      setProductPackagingName('')
+      setNotice(`제품으로 등록됐습니다: ${createdProduct.name}`)
+    } catch {
       setNotice(localOnlyNotice)
     }
   }
@@ -898,6 +950,42 @@ export function ProjectDetailPage() {
           </label>
           <button type="submit" className="primary-dashboard-button">
             테스트 결과 등록
+          </button>
+        </form>
+        <form className="product-export-form" onSubmit={registerProduct}>
+          <label>
+            제품 등록 Try
+            <select
+              value={effectiveProductTryNumber ? String(effectiveProductTryNumber.id) : ''}
+              onChange={(event) => setProductTryNumber(event.target.value)}
+            >
+              {tries.map((item) => (
+                <option key={item.id} value={String(item.id)}>
+                  try#{item.id} {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            제품명
+            <input
+              value={productName}
+              onChange={(event) => setProductName(event.target.value)}
+              placeholder={
+                selectedProductTry ? defaultProductName(projectName, selectedProductTry) : '제품명'
+              }
+            />
+          </label>
+          <label>
+            포장
+            <input
+              value={productPackagingName}
+              onChange={(event) => setProductPackagingName(event.target.value)}
+              placeholder="예: Multi PTP"
+            />
+          </label>
+          <button type="submit" className="primary-dashboard-button">
+            제품 등록
           </button>
         </form>
         {notice ? <p className="local-notice">{notice}</p> : null}
@@ -1231,4 +1319,8 @@ function formatMeasurement(result: TryTestResultRow) {
   }
 
   return [value, measurementUnit].filter(Boolean).join(' ')
+}
+
+function defaultProductName(projectName: string, targetTry: TryRow) {
+  return `${projectName} ${targetTry.title || `try#${targetTry.id}`}`
 }

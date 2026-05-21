@@ -5,9 +5,11 @@ import { ProjectsService } from './projects.service';
 
 describe('ProjectsController', () => {
   const projectsService: {
+    createProductFromTry: jest.Mock;
     deleteTryMarks: jest.Mock;
     updateFormulaTry: jest.Mock;
   } = {
+    createProductFromTry: jest.fn(),
     deleteTryMarks: jest.fn(),
     updateFormulaTry: jest.fn(),
   };
@@ -65,6 +67,33 @@ describe('ProjectsController', () => {
     const handler = Object.getOwnPropertyDescriptor(
       ProjectsController.prototype,
       'deleteTryMarks',
+    )?.value;
+
+    expect(Reflect.getMetadata(REQUIRED_ROLES_KEY, handler)).toEqual([
+      UserRole.Admin,
+      UserRole.Researcher,
+    ]);
+  });
+
+  it('creates a product from a formula try through the service', async () => {
+    const createdProduct = { id: 'product-1', name: '신물 억제 제품' };
+    const dto = { name: '신물 억제 제품', packagingName: 'Multi PTP' };
+    projectsService.createProductFromTry.mockResolvedValue(createdProduct);
+
+    await expect(controller.createProductFromTry('try-1', dto)).resolves.toBe(
+      createdProduct,
+    );
+
+    expect(projectsService.createProductFromTry).toHaveBeenCalledWith(
+      'try-1',
+      dto,
+    );
+  });
+
+  it('requires admin or researcher role for product creation from try', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      ProjectsController.prototype,
+      'createProductFromTry',
     )?.value;
 
     expect(Reflect.getMetadata(REQUIRED_ROLES_KEY, handler)).toEqual([

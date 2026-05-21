@@ -6,6 +6,7 @@ import {
   CreateFormulaTryDto,
   CreateTryIngredientDto,
 } from './dto/create-formula-try.dto';
+import { CreateProductFromTryDto } from './dto/create-product-from-try.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateTestResultDto } from './dto/create-test-result.dto';
 import { CreateTryMarkDto } from './dto/create-try-mark.dto';
@@ -38,6 +39,54 @@ const projectInclude = {
       },
     },
   },
+};
+
+const formulaTryProductSourceInclude = {
+  ingredients: {
+    include: {
+      ingredient: true,
+    },
+  },
+  group: {
+    include: {
+      project: true,
+    },
+  },
+};
+
+const productFromTryInclude = {
+  dosageForm: true,
+  packaging: true,
+  formulas: {
+    include: {
+      ingredients: {
+        include: {
+          ingredient: true,
+        },
+      },
+    },
+  },
+};
+
+const kolmarDosageForms = new Set([
+  '츄어블 정제',
+  '이중 제형 정제',
+  '미니/멀티 정제',
+  '쿨멜팅 분말',
+  '크런치 분말',
+  '팝핑 분말',
+]);
+
+const kolmarPackagingOptions = new Set(['스틱 포장', 'Multi PTP']);
+
+type SourceTryIngredient = {
+  amount?: unknown;
+  unit?: string | null;
+  ratio?: unknown;
+  note?: string | null;
+  ingredient?: {
+    name?: string | null;
+  } | null;
 };
 
 @Injectable()
@@ -300,6 +349,78 @@ export class ProjectsService {
     };
   }
 
+  async createProductFromTry(tryId: string, dto: CreateProductFromTryDto) {
+    const sourceTry = await this.prisma.formulaTry.findUnique({
+      where: {
+        id: tryId,
+      },
+      include: formulaTryProductSourceInclude,
+    });
+
+    if (!sourceTry) {
+      throw new NotFoundException(`FormulaTry ${tryId} not found`);
+    }
+
+    const ingredients = (sourceTry.ingredients ?? [])
+      .map((ingredient) =>
+        this.toProductFormulaIngredientCreateInput(ingredient),
+      )
+      .filter((ingredient) => ingredient !== undefined);
+    const project = sourceTry.group.project;
+    const productName =
+      cleanString(dto.name) ??
+      `${project.name} ${sourceTry.title ?? `try#${sourceTry.tryNumber}`}`;
+    const dosageFormName =
+      cleanString(dto.dosageFormName) ??
+      cleanString(sourceTry.dosageForm) ??
+      cleanString(project.desiredForm);
+
+    const product = await this.prisma.product.create({
+      data: {
+        name: productName,
+        category: cleanString(dto.category),
+        target: cleanString(dto.target) ?? cleanString(project.target),
+        function: cleanString(dto.function) ?? cleanString(project.function),
+        dosageForm: this.toProductDosageFormInput(dosageFormName),
+        packaging: this.toProductPackagingInput(dto.packagingName),
+        formulas: {
+          create: {
+            version:
+              cleanString(dto.formulaVersion) ?? `try#${sourceTry.tryNumber}`,
+            note: cleanString(dto.formulaNote) ?? cleanString(sourceTry.memo),
+            ...(ingredients.length > 0
+              ? {
+                  ingredients: {
+                    create: ingredients,
+                  },
+                }
+              : {}),
+          },
+        },
+      },
+      include: productFromTryInclude,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'PRODUCT_CREATED_FROM_TRY',
+        targetType: 'Product',
+        targetId: product.id,
+        summary: `try 기반 제품 등록: ${productName}`,
+        metadata: {
+          productName,
+          sourceTryId: sourceTry.id,
+          sourceTryNumber: sourceTry.tryNumber,
+          sourceGroupId: sourceTry.groupId,
+          sourceProjectId: project.id,
+          ingredientCount: ingredients.length,
+        },
+      },
+    });
+
+    return product;
+  }
+
   async deleteFormulaTry(tryId: string) {
     const deletedTry = await this.prisma.formulaTry.delete({
       where: {
@@ -361,6 +482,65 @@ export class ProjectsService {
       },
     };
   }
+
+  private toProductFormulaIngredientCreateInput(
+    ingredient: SourceTryIngredient,
+  ) {
+    const ingredientName = cleanString(ingredient.ingredient?.name);
+
+    if (!ingredientName) {
+      return undefined;
+    }
+
+    return {
+      amount: cleanDecimalValue(ingredient.amount),
+      unit: cleanString(ingredient.unit),
+      ratio: cleanDecimalValue(ingredient.ratio),
+      role: cleanString(ingredient.note),
+      ingredient: {
+        connectOrCreate: {
+          where: { name: ingredientName },
+          create: { name: ingredientName },
+        },
+      },
+    };
+  }
+
+  private toProductDosageFormInput(name?: string | null) {
+    const normalizedName = cleanString(name);
+
+    if (!normalizedName) {
+      return undefined;
+    }
+
+    return {
+      connectOrCreate: {
+        where: { name: normalizedName },
+        create: {
+          name: normalizedName,
+          isKolmarSpecial: kolmarDosageForms.has(normalizedName),
+        },
+      },
+    };
+  }
+
+  private toProductPackagingInput(name?: string | null) {
+    const normalizedName = cleanString(name);
+
+    if (!normalizedName) {
+      return undefined;
+    }
+
+    return {
+      connectOrCreate: {
+        where: { name: normalizedName },
+        create: {
+          name: normalizedName,
+          isKolmarSpecial: kolmarPackagingOptions.has(normalizedName),
+        },
+      },
+    };
+  }
 }
 
 function cleanString(value?: string | null) {
@@ -393,4 +573,33 @@ function cleanScalar(value?: number | string | null) {
 
   const normalized = String(value).trim();
   return normalized ? normalized : undefined;
+}
+
+function cleanDecimalValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'number' || typeof value === 'string') {
+    const normalized = String(value).trim();
+    return normalized ? normalized : undefined;
+  }
+
+  if (!hasDecimalToNumber(value)) {
+    return undefined;
+  }
+
+  const normalized = String(value.toNumber()).trim();
+  return normalized ? normalized : undefined;
+}
+
+function hasDecimalToNumber(
+  value: unknown,
+): value is { toNumber: () => number } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'toNumber' in value &&
+    typeof value.toNumber === 'function'
+  );
 }

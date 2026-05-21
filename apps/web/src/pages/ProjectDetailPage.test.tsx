@@ -422,6 +422,32 @@ describe('ProjectDetailPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('registers a selected API try as a product asset', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+    apiPostMock.mockResolvedValueOnce({
+      id: 'product-1',
+      name: '신물 억제 후보 제품',
+    })
+
+    renderProjectDetail()
+
+    await findApiCandidateRow()
+
+    await user.selectOptions(screen.getByLabelText('제품 등록 Try'), '1')
+    await user.type(screen.getByLabelText('제품명'), '신물 억제 후보 제품')
+    await user.type(screen.getByLabelText('포장'), 'Multi PTP')
+    await user.click(screen.getByRole('button', { name: '제품 등록' }))
+
+    expect(apiPostMock).toHaveBeenCalledWith('/projects/tries/api-try-1/product', {
+      name: '신물 억제 후보 제품',
+      packagingName: 'Multi PTP',
+      formulaVersion: 'try#1',
+      formulaNote: '초기 기준',
+    })
+    expect(screen.getByText('제품으로 등록됐습니다: 신물 억제 후보 제품')).toBeInTheDocument()
+  })
+
   it('shows loaded try test result history', async () => {
     mockProjectDetail()
 

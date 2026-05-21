@@ -15,8 +15,12 @@ describe('ProjectsService', () => {
     formulaTry: {
       create: jest.Mock;
       delete: jest.Mock;
+      findUnique: jest.Mock;
       findMany: jest.Mock;
       update: jest.Mock;
+    };
+    product: {
+      create: jest.Mock;
     };
     $transaction: jest.Mock;
     tryTestResult: {
@@ -41,8 +45,12 @@ describe('ProjectsService', () => {
     formulaTry: {
       create: jest.fn(),
       delete: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+    },
+    product: {
+      create: jest.fn(),
     },
     $transaction: jest.fn(),
     tryTestResult: {
@@ -386,6 +394,144 @@ describe('ProjectsService', () => {
         metadata: {
           tryId: 'try-1',
           deletedCount: 1,
+        },
+      },
+    });
+  });
+
+  it('creates a registered product from a formula try and records an audit log', async () => {
+    const sourceTry = {
+      id: 'try-1',
+      groupId: 'group-1',
+      tryNumber: 2,
+      title: '최종 후보',
+      dosageForm: '츄어블 정제',
+      memo: '관능 통과',
+      group: {
+        id: 'group-1',
+        name: '신물 억제 그룹',
+        project: {
+          id: 'project-1',
+          name: '신물 억제 개발',
+          target: '성인',
+          function: '위 건강',
+          desiredForm: '정제',
+        },
+      },
+      ingredients: [
+        {
+          amount: '500',
+          unit: 'mg',
+          ratio: '40',
+          note: '산미',
+          ingredient: {
+            name: '비타민 C',
+          },
+        },
+        {
+          amount: null,
+          unit: 'mg',
+          ratio: null,
+          note: null,
+          ingredient: {
+            name: '아연',
+          },
+        },
+      ],
+    };
+    const createdProduct = {
+      id: 'product-1',
+      name: '신물 억제 후보 제품',
+    };
+    prisma.formulaTry.findUnique.mockResolvedValue(sourceTry);
+    prisma.product.create.mockResolvedValue(createdProduct);
+
+    const result = await service.createProductFromTry('try-1', {
+      name: ' 신물 억제 후보 제품 ',
+      packagingName: 'Multi PTP',
+    });
+
+    expect(result).toBe(createdProduct);
+    expect(prisma.formulaTry.findUnique).toHaveBeenCalledWith({
+      where: {
+        id: 'try-1',
+      },
+      include: expect.any(Object),
+    });
+    expect(prisma.product.create).toHaveBeenCalledWith({
+      data: {
+        name: '신물 억제 후보 제품',
+        category: undefined,
+        target: '성인',
+        function: '위 건강',
+        dosageForm: {
+          connectOrCreate: {
+            where: { name: '츄어블 정제' },
+            create: {
+              name: '츄어블 정제',
+              isKolmarSpecial: true,
+            },
+          },
+        },
+        packaging: {
+          connectOrCreate: {
+            where: { name: 'Multi PTP' },
+            create: {
+              name: 'Multi PTP',
+              isKolmarSpecial: true,
+            },
+          },
+        },
+        formulas: {
+          create: {
+            version: 'try#2',
+            note: '관능 통과',
+            ingredients: {
+              create: [
+                {
+                  amount: '500',
+                  unit: 'mg',
+                  ratio: '40',
+                  role: '산미',
+                  ingredient: {
+                    connectOrCreate: {
+                      where: { name: '비타민 C' },
+                      create: { name: '비타민 C' },
+                    },
+                  },
+                },
+                {
+                  amount: undefined,
+                  unit: 'mg',
+                  ratio: undefined,
+                  role: undefined,
+                  ingredient: {
+                    connectOrCreate: {
+                      where: { name: '아연' },
+                      create: { name: '아연' },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+      include: expect.any(Object),
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'PRODUCT_CREATED_FROM_TRY',
+        targetType: 'Product',
+        targetId: 'product-1',
+        summary: 'try 기반 제품 등록: 신물 억제 후보 제품',
+        metadata: {
+          productName: '신물 억제 후보 제품',
+          sourceTryId: 'try-1',
+          sourceTryNumber: 2,
+          sourceGroupId: 'group-1',
+          sourceProjectId: 'project-1',
+          ingredientCount: 2,
         },
       },
     });

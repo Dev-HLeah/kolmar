@@ -202,7 +202,23 @@
   padding: 0 16px 16px;
 }
 
+.product-export-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1fr) minmax(160px, 0.7fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 0 16px 16px;
+}
+
 .test-result-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.product-export-form label {
   display: grid;
   gap: 6px;
   color: var(--text-muted);
@@ -212,6 +228,17 @@
 
 .test-result-form input,
 .test-result-form select {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.product-export-form input,
+.product-export-form select {
   min-height: 38px;
   width: 100%;
   padding: 0 10px;
@@ -408,6 +435,10 @@
   }
 
   .test-result-form {
+    grid-template-columns: 1fr;
+  }
+
+  .product-export-form {
     grid-template-columns: 1fr;
   }
 

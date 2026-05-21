@@ -11,6 +11,7 @@ import { RequireRoles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role';
 import { CreateExperimentGroupDto } from './dto/create-experiment-group.dto';
 import { CreateFormulaTryDto } from './dto/create-formula-try.dto';
+import { CreateProductFromTryDto } from './dto/create-product-from-try.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateTestResultDto } from './dto/create-test-result.dto';
 import { CreateTryMarkDto } from './dto/create-try-mark.dto';
@@ -82,6 +83,15 @@ export class ProjectsController {
   @RequireRoles(UserRole.Admin, UserRole.Researcher)
   createTryMark(@Param('tryId') tryId: string, @Body() dto: CreateTryMarkDto) {
     return this.projectsService.createTryMark(tryId, dto);
+  }
+
+  @Post('tries/:tryId/product')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
+  createProductFromTry(
+    @Param('tryId') tryId: string,
+    @Body() dto: CreateProductFromTryDto,
+  ) {
+    return this.projectsService.createProductFromTry(tryId, dto);
   }
 
   @Delete('tries/:tryId/marks')
