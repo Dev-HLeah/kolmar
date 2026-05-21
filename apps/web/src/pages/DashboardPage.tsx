@@ -40,10 +40,34 @@ type DraftTryCandidate = {
   riskChecks: string[]
 }
 
+type SafetySignal = {
+  type: string
+  label: string
+  severity: 'warning' | 'caution' | 'info'
+  message: string
+  evidenceLevel: string
+  relatedIngredients: string[]
+}
+
 type DraftTryRecommendation = {
   projectName: string
   safetyNotice: string
+  safetySignals?: SafetySignal[]
   candidates: DraftTryCandidate[]
+}
+
+type FormulaIngredientInput = {
+  ingredientName: string
+  amount: string | null
+  unit: string | null
+  ratio: string | null
+  note: string | null
+}
+
+const severityLabels: Record<SafetySignal['severity'], string> = {
+  warning: '강한 주의',
+  caution: '주의',
+  info: '검토',
 }
 
 export function DashboardPage() {
@@ -182,6 +206,31 @@ export function DashboardPage() {
             <span>{recommendation.candidates.length}개 후보</span>
           </div>
           <p className="safety-notice">{recommendation.safetyNotice}</p>
+          {recommendation.safetySignals?.length ? (
+            <section className="safety-signal-panel">
+              <div className="safety-signal-heading">
+                <h4>안전/규제 신호</h4>
+                <span>{recommendation.safetySignals.length}개</span>
+              </div>
+              <div className="safety-signal-grid">
+                {recommendation.safetySignals.map((signal) => (
+                  <article className="safety-signal-card" data-severity={signal.severity} key={signal.type}>
+                    <div className="safety-signal-title">
+                      <strong>{signal.label}</strong>
+                      <span>{severityLabels[signal.severity]}</span>
+                    </div>
+                    <p>{signal.message}</p>
+                    <div className="signal-meta">
+                      <span>{signal.evidenceLevel}</span>
+                      {signal.relatedIngredients.map((ingredient) => (
+                        <span key={ingredient}>{ingredient}</span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
           <div className="candidate-grid">
             {recommendation.candidates.map((candidate) => (
               <article className="candidate-card" key={candidate.title}>
@@ -218,20 +267,75 @@ function nullableText(value: string) {
 }
 
 function createLocalRecommendation(
-  ingredients: Array<{ ingredientName: string }>,
+  ingredients: FormulaIngredientInput[],
 ): DraftTryRecommendation {
   const ingredientNames = ingredients.map((ingredient) => ingredient.ingredientName).join(', ') || '입력 원료'
 
   return {
     projectName: '로컬 후보 초안',
     safetyNotice: localRecommendationNotice,
+    safetySignals: createLocalSafetySignals(ingredients),
     candidates: [
       {
         title: '안정성 우선 로컬 후보',
         objective: 'API 연결 전에도 독성, 상한, 상호작용 확인 흐름을 먼저 잡는다.',
-        suggestedChanges: [ingredientNames, '증량은 보류하고 기준 함량부터 검토'],
+        suggestedChanges: [`입력 원료: ${ingredientNames}`, '증량은 보류하고 기준 함량부터 검토'],
         riskChecks: ['일일 섭취량 상한', '원료 간 상호작용', '제형별 안정성'],
       },
     ],
   }
+}
+
+function createLocalSafetySignals(ingredients: FormulaIngredientInput[]): SafetySignal[] {
+  const hasVitaminC = ingredients.some(isVitaminCInput)
+  const zincIngredient = ingredients.find((ingredient) => includesText(ingredient.ingredientName, '아연'))
+  const signals: SafetySignal[] = []
+
+  const vitaminCIngredient = ingredients.find(isVitaminCInput)
+  if (vitaminCIngredient) {
+    signals.push({
+      type: 'local-sensory-stability',
+      label: '관능/산미 안정성',
+      severity: 'caution',
+      message: '비타민 C 또는 산미 메모가 있어 맛과 색 변화 가능성 확인이 필요합니다.',
+      evidenceLevel: 'local-formulation-signal',
+      relatedIngredients: [vitaminCIngredient.ingredientName],
+    })
+  }
+
+  if (zincIngredient) {
+    signals.push({
+      type: 'local-upper-intake-review',
+      label: '상한 섭취량 검토',
+      severity: 'warning',
+      message: '아연은 함량 입력 후 일일 섭취량 상한 확인이 필요합니다.',
+      evidenceLevel: 'local-rule-of-thumb',
+      relatedIngredients: [zincIngredient.ingredientName],
+    })
+  }
+
+  if (hasVitaminC && zincIngredient) {
+    signals.push({
+      type: 'local-combination-review',
+      label: '원료 조합 검토',
+      severity: 'info',
+      message: '비타민 C와 아연 조합은 함량 변화 시 맛, 위장 부담, 표시 기준을 함께 검토합니다.',
+      evidenceLevel: 'local-internal-review',
+      relatedIngredients: ['비타민 C', '아연'],
+    })
+  }
+
+  return signals
+}
+
+function isVitaminCInput(ingredient: FormulaIngredientInput) {
+  return (
+    includesText(ingredient.ingredientName, '비타민 c') ||
+    includesText(ingredient.ingredientName, 'vitamin c') ||
+    includesText(ingredient.note, '산미')
+  )
+}
+
+function includesText(value: string | null, keyword: string) {
+  return value?.toLowerCase().includes(keyword.toLowerCase()) ?? false
 }

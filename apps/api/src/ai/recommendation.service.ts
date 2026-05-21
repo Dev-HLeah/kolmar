@@ -1,13 +1,25 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import type { AiProvider } from './ai-provider.interface';
-import { CreateDraftTriesDto } from './dto/create-draft-tries.dto';
+import {
+  CreateDraftTriesDto,
+  type DraftFormulaIngredientDto,
+} from './dto/create-draft-tries.dto';
 
 type DraftTryCandidate = {
   title: string;
   objective: string;
   suggestedChanges: string[];
   riskChecks: string[];
+};
+
+type SafetySignal = {
+  type: string;
+  label: string;
+  severity: 'warning' | 'caution' | 'info';
+  message: string;
+  evidenceLevel: string;
+  relatedIngredients: string[];
 };
 
 @Injectable()
@@ -25,6 +37,7 @@ export class RecommendationService {
       providerOutput,
       safetyNotice:
         'AI 추천은 연구 후보 초안이며, 독성/상한/규격/공정 적합성은 근거 자료와 실험으로 확인해야 합니다.',
+      safetySignals: this.createSafetySignals(dto),
       candidates: this.createCandidateSet(dto),
     };
   }
@@ -89,5 +102,92 @@ export class RecommendationService {
         riskChecks: ['변경 원료 영향 추적', 'try 간 비교 가능성'],
       },
     ];
+  }
+
+  private createSafetySignals(dto: CreateDraftTriesDto): SafetySignal[] {
+    const ingredients = dto.sourceFormula?.ingredients ?? [];
+    const hasVitaminC = ingredients.some((ingredient) =>
+      this.isVitaminCIngredient(ingredient),
+    );
+    const hasZinc = ingredients.some((ingredient) =>
+      this.includesText(ingredient.ingredientName, '아연'),
+    );
+    const signals: SafetySignal[] = [];
+
+    const vitaminCIngredient = ingredients.find((ingredient) =>
+      this.isVitaminCIngredient(ingredient),
+    );
+    if (vitaminCIngredient) {
+      signals.push({
+        type: 'sensory-stability',
+        label: '관능/산미 안정성',
+        severity: 'caution',
+        message:
+          '비타민 C는 산미와 색 변화 가능성이 있어 제형 안정성 확인이 필요합니다.',
+        evidenceLevel: 'formulation-signal',
+        relatedIngredients: [vitaminCIngredient.ingredientName],
+      });
+    }
+
+    const zincIngredient = ingredients.find((ingredient) => {
+      const amount = this.toNumber(ingredient.amount);
+
+      return (
+        this.includesText(ingredient.ingredientName, '아연') &&
+        this.includesText(ingredient.unit, 'mg') &&
+        amount !== null &&
+        amount >= 30
+      );
+    });
+    if (zincIngredient) {
+      const amount = this.toNumber(zincIngredient.amount);
+      signals.push({
+        type: 'upper-intake-review',
+        label: '상한 섭취량 검토',
+        severity: 'warning',
+        message: `아연 ${amount}mg 입력값은 일일 섭취량 상한 검토가 필요합니다.`,
+        evidenceLevel: 'rule-of-thumb',
+        relatedIngredients: [zincIngredient.ingredientName],
+      });
+    }
+
+    if (hasVitaminC && hasZinc) {
+      signals.push({
+        type: 'combination-review',
+        label: '원료 조합 검토',
+        severity: 'info',
+        message:
+          '비타민 C와 아연 조합은 함량 변화 시 맛, 위장 부담, 표시 기준을 함께 검토해야 합니다.',
+        evidenceLevel: 'internal-review',
+        relatedIngredients: ['비타민 C', '아연'],
+      });
+    }
+
+    return signals;
+  }
+
+  private isVitaminCIngredient(ingredient: DraftFormulaIngredientDto) {
+    return (
+      this.includesText(ingredient.ingredientName, '비타민 c') ||
+      this.includesText(ingredient.ingredientName, 'vitamin c') ||
+      this.includesText(ingredient.note, '산미')
+    );
+  }
+
+  private includesText(value: string | null | undefined, keyword: string) {
+    return value?.toLowerCase().includes(keyword.toLowerCase()) ?? false;
+  }
+
+  private toNumber(value: number | string | null | undefined) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
   }
 }
