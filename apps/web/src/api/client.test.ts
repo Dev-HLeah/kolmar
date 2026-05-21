@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiGet, apiPost, setApiRole } from './client'
+import { apiDelete, apiGet, apiPost, setApiRole } from './client'
 
 const fetchMock = vi.fn()
 const originalFetch = globalThis.fetch
@@ -56,6 +56,27 @@ describe('api client', () => {
         headers: expect.objectContaining({
           'content-type': 'application/json',
           'x-user-role': 'admin',
+        }),
+      }),
+    )
+  })
+
+  it('sends DELETE requests with the active user role', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: 'try-1' }),
+    })
+
+    setApiRole('researcher')
+
+    await apiDelete('/projects/tries/try-1')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/projects/tries/try-1',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: expect.objectContaining({
+          'x-user-role': 'researcher',
         }),
       }),
     )

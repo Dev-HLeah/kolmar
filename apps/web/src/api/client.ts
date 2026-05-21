@@ -44,3 +44,9 @@ export async function apiPost<TResponse, TBody extends object>(
     body: JSON.stringify(body),
   })
 }
+
+export async function apiDelete<TResponse>(path: string): Promise<TResponse> {
+  return requestJson<TResponse>(path, {
+    method: 'DELETE',
+  })
+}
