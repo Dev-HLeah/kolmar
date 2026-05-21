@@ -24,6 +24,42 @@
   background: #ffffff;
 }
 
+.evidence-registration-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.evidence-registration-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.evidence-registration-form input,
+.evidence-registration-form select {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.evidence-registration-form .wide-field {
+  grid-column: span 2;
+}
+
+.registration-actions {
+  grid-column: span 2;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .result-context,
 .empty-result {
   margin: 16px;
@@ -114,6 +150,15 @@
 @media (max-width: 640px) {
   .knowledge-search-form {
     grid-template-columns: 1fr;
+  }
+
+  .evidence-registration-form {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-registration-form .wide-field,
+  .registration-actions {
+    grid-column: auto;
   }
 
   .result-card-heading {

@@ -1,19 +1,22 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiGet } from '../api/client'
+import { apiGet, apiPost } from '../api/client'
 import { KnowledgeSearchPage } from './KnowledgeSearchPage'
 
 vi.mock('../api/client', () => ({
   apiGet: vi.fn(),
+  apiPost: vi.fn(),
 }))
 
 const apiGetMock = vi.mocked(apiGet)
+const apiPostMock = vi.mocked(apiPost)
 
 describe('KnowledgeSearchPage', () => {
   beforeEach(() => {
     apiGetMock.mockReset()
+    apiPostMock.mockReset()
   })
 
   it('searches evidence candidates from a user query', async () => {
@@ -45,12 +48,17 @@ describe('KnowledgeSearchPage', () => {
     await waitFor(() => {
       expect(apiGetMock).toHaveBeenCalledWith('/search?q=%EB%B9%84%ED%83%80%EB%AF%BC%20C')
     })
-    expect(await screen.findByRole('heading', { name: '비타민 C 고형제 안정성' }))
-      .toBeInTheDocument()
-    expect(screen.getByText('정제 조건에서 산미와 색 변화 검토가 필요합니다.')).toBeInTheDocument()
-    expect(screen.getByText('MFDS')).toBeInTheDocument()
-    expect(screen.getByText('official')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '원문 보기' })).toHaveAttribute(
+    const searchResultCard = (await screen.findByRole('heading', {
+      name: '비타민 C 고형제 안정성',
+    })).closest('article')
+
+    expect(searchResultCard).not.toBeNull()
+    expect(
+      within(searchResultCard as HTMLElement).getByText('정제 조건에서 산미와 색 변화 검토가 필요합니다.'),
+    ).toBeInTheDocument()
+    expect(within(searchResultCard as HTMLElement).getByText('MFDS')).toBeInTheDocument()
+    expect(within(searchResultCard as HTMLElement).getByText('official')).toBeInTheDocument()
+    expect(within(searchResultCard as HTMLElement).getByRole('link', { name: '원문 보기' })).toHaveAttribute(
       'href',
       'https://example.com/evidence',
     )
@@ -71,5 +79,84 @@ describe('KnowledgeSearchPage', () => {
     expect(await screen.findByText('API 연결 실패로 로컬 근거 후보를 표시합니다.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '아연 관련 로컬 근거 후보' })).toBeInTheDocument()
     expect(screen.getByText('mock-vector')).toBeInTheDocument()
+  })
+
+  it('registers an evidence source and item for reuse', async () => {
+    const user = userEvent.setup()
+    apiPostMock
+      .mockResolvedValueOnce({
+        id: 'source-1',
+        name: 'MFDS',
+        type: 'official',
+        baseUrl: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'item-1',
+        title: '비타민 C 기준 규격',
+        summary: '고형제 기준 검토',
+        sourceUrl: 'https://example.com/vitamin-c',
+        grade: 'official',
+        source: {
+          id: 'source-1',
+          name: 'MFDS',
+          type: 'official',
+        },
+      })
+
+    render(
+      <MemoryRouter>
+        <KnowledgeSearchPage />
+      </MemoryRouter>,
+    )
+
+    await user.type(screen.getByLabelText('출처명'), 'MFDS')
+    await user.type(screen.getByLabelText('근거 제목'), '비타민 C 기준 규격')
+    await user.type(screen.getByLabelText('요약'), '고형제 기준 검토')
+    await user.type(screen.getByLabelText('원문 URL'), 'https://example.com/vitamin-c')
+    await user.click(screen.getByRole('button', { name: '근거 등록' }))
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenNthCalledWith(1, '/evidence/sources', {
+        name: 'MFDS',
+        type: 'official',
+        baseUrl: null,
+      })
+    })
+    expect(apiPostMock).toHaveBeenNthCalledWith(2, '/evidence/items', {
+      sourceId: 'source-1',
+      title: '비타민 C 기준 규격',
+      summary: '고형제 기준 검토',
+      rawText: '고형제 기준 검토',
+      sourceUrl: 'https://example.com/vitamin-c',
+      grade: 'official',
+    })
+    const registeredCard = (await screen.findByRole('heading', {
+      name: '비타민 C 기준 규격',
+    })).closest('article')
+
+    expect(registeredCard).not.toBeNull()
+    expect(within(registeredCard as HTMLElement).getByText('MFDS')).toBeInTheDocument()
+    expect(within(registeredCard as HTMLElement).getByText('고형제 기준 검토')).toBeInTheDocument()
+  })
+
+  it('keeps a local evidence item when registration API is unavailable', async () => {
+    const user = userEvent.setup()
+    apiPostMock.mockRejectedValueOnce(new Error('API offline'))
+
+    render(
+      <MemoryRouter>
+        <KnowledgeSearchPage />
+      </MemoryRouter>,
+    )
+
+    await user.type(screen.getByLabelText('출처명'), '내부 실험')
+    await user.type(screen.getByLabelText('근거 제목'), '아연 관능 메모')
+    await user.click(screen.getByRole('button', { name: '근거 등록' }))
+
+    expect(await screen.findByText('API 연결 실패로 로컬 근거 목록에만 반영됐습니다.')).toBeInTheDocument()
+    const localCard = screen.getByRole('heading', { name: '아연 관능 메모' }).closest('article')
+
+    expect(localCard).not.toBeNull()
+    expect(within(localCard as HTMLElement).getByText('내부 실험')).toBeInTheDocument()
   })
 })
