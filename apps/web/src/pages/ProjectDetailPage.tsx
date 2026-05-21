@@ -16,6 +16,7 @@ type TryRow = {
   ingredients: FormulaRow[]
   testResults: TryTestResultRow[]
   marked: boolean
+  mark?: TryMarkRow
 }
 
 type TryStatus =
@@ -27,6 +28,19 @@ type TryStatus =
   | 'FINAL_CANDIDATE'
   | 'DISCARDED'
   | 'ON_HOLD'
+
+type TryMarkType =
+  | 'PROMISING'
+  | 'ISSUE_FOUND'
+  | 'BASELINE_CANDIDATE'
+  | 'FINAL_CANDIDATE'
+  | 'DISCARDED'
+  | 'NEEDS_REVIEW'
+
+type TryMarkRow = {
+  type: TryMarkType
+  reason: string
+}
 
 type TryTestResultRow = {
   id: string
@@ -56,7 +70,7 @@ type ApiFormulaTry = {
   memo?: string | null
   ingredients?: ApiTryIngredient[]
   testResults?: ApiTestResult[]
-  marks?: unknown[]
+  marks?: ApiTryMark[]
 }
 
 type ApiTryIngredient = {
@@ -71,7 +85,8 @@ type ApiTryIngredient = {
 
 type ApiTryMark = {
   id: string
-  type: string
+  type?: TryMarkType | null
+  reason?: string | null
 }
 
 type ApiTestResult = {
@@ -122,6 +137,21 @@ const tryStatusLabels = tryStatusOptions.reduce<Record<TryStatus, string>>(
     [option.value]: option.label,
   }),
   {} as Record<TryStatus, string>,
+)
+const tryMarkOptions: { value: TryMarkType; label: string }[] = [
+  { value: 'PROMISING', label: '유망' },
+  { value: 'ISSUE_FOUND', label: '문제 발견' },
+  { value: 'BASELINE_CANDIDATE', label: '기준 처방 후보' },
+  { value: 'FINAL_CANDIDATE', label: '최종 후보' },
+  { value: 'DISCARDED', label: '폐기' },
+  { value: 'NEEDS_REVIEW', label: '재검토 필요' },
+]
+const tryMarkLabels = tryMarkOptions.reduce<Record<TryMarkType, string>>(
+  (labels, option) => ({
+    ...labels,
+    [option.value]: option.label,
+  }),
+  {} as Record<TryMarkType, string>,
 )
 
 const initialTries: TryRow[] = [
@@ -219,6 +249,8 @@ export function ProjectDetailPage() {
   const [activeGroupId, setActiveGroupId] = useState(sampleGroupId)
   const [tryFilter, setTryFilter] = useState<'all' | 'marked'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | TryStatus>('all')
+  const [markType, setMarkType] = useState<TryMarkType>('PROMISING')
+  const [markReason, setMarkReason] = useState('')
   const [groupTitle, setGroupTitle] = useState('')
   const [groupPurpose, setGroupPurpose] = useState('')
   const [tryTitle, setTryTitle] = useState('')
@@ -439,36 +471,46 @@ export function ProjectDetailPage() {
 
     if (targetTry.marked) {
       updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === id ? { ...item, marked: false } : item)),
+        current.map((item) =>
+          item.id === id ? { ...item, marked: false, mark: undefined } : item,
+        ),
       )
       setNotice(localOnlyNotice)
       return
     }
 
+    const payload = {
+      type: markType,
+      reason: nullableText(markReason),
+    }
+    const localMark = toTryMarkRow(payload) ?? { type: markType, reason: '' }
+
     if (!targetTry.apiId) {
       updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
+        current.map((item) => (item.id === id ? { ...item, marked: true, mark: localMark } : item)),
       )
+      setMarkReason('')
       setNotice(localOnlyNotice)
       return
     }
 
     try {
-      await apiPost<ApiTryMark, { type: 'PROMISING'; reason: string }>(
+      const createdMark = await apiPost<ApiTryMark, typeof payload>(
         `/projects/tries/${targetTry.apiId}/marks`,
-        {
-          type: 'PROMISING',
-          reason: '의미 있는 시도로 마킹',
-        },
+        payload,
       )
+      const nextMark = toTryMarkRow(createdMark, localMark)
+
       updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
+        current.map((item) => (item.id === id ? { ...item, marked: true, mark: nextMark } : item)),
       )
+      setMarkReason('')
       setNotice('')
     } catch {
       updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
+        current.map((item) => (item.id === id ? { ...item, marked: true, mark: localMark } : item)),
       )
+      setMarkReason('')
       setNotice(localOnlyNotice)
     }
   }
@@ -751,6 +793,29 @@ export function ProjectDetailPage() {
             ))}
           </select>
         </label>
+        <div className="mark-form">
+          <label>
+            마킹 유형
+            <select
+              value={markType}
+              onChange={(event) => setMarkType(event.target.value as TryMarkType)}
+            >
+              {tryMarkOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="wide-field">
+            마킹 사유
+            <input
+              value={markReason}
+              onChange={(event) => setMarkReason(event.target.value)}
+              placeholder="예: 쓴맛 과다, 최종 후보 검토, 안정성 이슈"
+            />
+          </label>
+        </div>
         <div className="try-add-form">
           <label>
             Try 목적
@@ -820,6 +885,8 @@ export function ProjectDetailPage() {
                   <th>Try</th>
                   <th>목적</th>
                   <th>상태</th>
+                  <th>마킹</th>
+                  <th>사유</th>
                 </tr>
               </thead>
               <tbody>
@@ -829,11 +896,13 @@ export function ProjectDetailPage() {
                     <td>try#{tryRow.id}</td>
                     <td>{tryRow.title}</td>
                     <td>{tryStatusLabels[tryRow.status]}</td>
+                    <td>{formatMark(tryRow.mark)}</td>
+                    <td>{tryRow.mark?.reason || '-'}</td>
                   </tr>
                 ))}
                 {markedTryRows.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>프로젝트에 마킹된 Try 없음</td>
+                    <td colSpan={6}>프로젝트에 마킹된 Try 없음</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -961,7 +1030,7 @@ export function ProjectDetailPage() {
                   <td>try#{item.id}</td>
                   <td>{item.title}</td>
                   <td>{tryStatusLabels[item.status]}</td>
-                  <td>{item.marked ? '마킹됨' : '일반'}</td>
+                  <td>{formatMark(item.mark)}</td>
                   <td>
                     <div className="row-actions">
                       <button
@@ -1025,18 +1094,38 @@ function toExperimentGroup(group: ApiExperimentGroup): ExperimentGroupRow {
 function toTryRows(tries: ApiFormulaTry[]): TryRow[] {
   return [...tries]
     .sort((left, right) => left.tryNumber - right.tryNumber)
-    .map((item) => ({
-      id: item.tryNumber,
-      apiId: item.id,
-      title: item.title?.trim() || `try#${item.tryNumber}`,
-      status: item.status ?? 'DRAFT',
-      dosageForm: item.dosageForm?.trim() || '',
-      manufacturingProcess: item.manufacturingProcess?.trim() || '',
-      memo: item.memo?.trim() || '',
-      ingredients: toFormulaRows(item.ingredients ?? []),
-      testResults: toTestResultRows(item.testResults ?? []),
-      marked: (item.marks?.length ?? 0) > 0,
-    }))
+    .map((item) => {
+      const mark = toTryMarkRow(item.marks?.[0])
+
+      return {
+        id: item.tryNumber,
+        apiId: item.id,
+        title: item.title?.trim() || `try#${item.tryNumber}`,
+        status: item.status ?? 'DRAFT',
+        dosageForm: item.dosageForm?.trim() || '',
+        manufacturingProcess: item.manufacturingProcess?.trim() || '',
+        memo: item.memo?.trim() || '',
+        ingredients: toFormulaRows(item.ingredients ?? []),
+        testResults: toTestResultRows(item.testResults ?? []),
+        marked: Boolean(mark),
+        mark,
+      }
+    })
+}
+
+function toTryMarkRow(mark?: Partial<ApiTryMark>, fallback?: TryMarkRow): TryMarkRow | undefined {
+  if (!mark && !fallback) {
+    return undefined
+  }
+
+  return {
+    type: mark?.type ?? fallback?.type ?? 'PROMISING',
+    reason: mark?.reason?.trim() || fallback?.reason || '',
+  }
+}
+
+function formatMark(mark?: TryMarkRow) {
+  return mark ? tryMarkLabels[mark.type] : '일반'
 }
 
 function toFormulaRows(ingredients: ApiTryIngredient[]): FormulaRow[] {

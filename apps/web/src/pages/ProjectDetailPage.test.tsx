@@ -78,7 +78,7 @@ function mockProjectDetail(options: { markSecondGroup?: boolean } = {}) {
             status: 'CANDIDATE',
             title: 'API 후보',
             testResults: [],
-            marks: [{ id: 'mark-1' }],
+            marks: [{ id: 'mark-1', type: 'PROMISING', reason: '관능 후보' }],
           },
         ],
       },
@@ -97,7 +97,9 @@ function mockProjectDetail(options: { markSecondGroup?: boolean } = {}) {
             memo: '단맛 보완',
             ingredients: [],
             testResults: [],
-            marks: options.markSecondGroup ? [{ id: 'mark-10' }] : [],
+            marks: options.markSecondGroup
+              ? [{ id: 'mark-10', type: 'FINAL_CANDIDATE', reason: '최종 후보 검토' }]
+              : [],
           },
         ],
       },
@@ -107,7 +109,7 @@ function mockProjectDetail(options: { markSecondGroup?: boolean } = {}) {
 
 function findApiCandidateRow() {
   return screen.findByRole('row', {
-    name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제',
+    name: 'try#2 API 후보 후보 유망 try#2 마킹 try#2 삭제',
   })
 }
 
@@ -129,7 +131,7 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByRole('heading', { name: 'API 신물 억제 그룹' })).toBeInTheDocument()
     expect(screen.getByText('의미 있는 Try 1건')).toBeInTheDocument()
     expect(
-      screen.getByRole('row', { name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제' }),
+      screen.getByRole('row', { name: 'try#2 API 후보 후보 유망 try#2 마킹 try#2 삭제' }),
     ).toBeInTheDocument()
   })
 
@@ -143,7 +145,7 @@ describe('ProjectDetailPage', () => {
     await user.click(screen.getByRole('button', { name: '의미 있는 Try만 보기' }))
 
     expect(
-      screen.getByRole('row', { name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제' }),
+      screen.getByRole('row', { name: 'try#2 API 후보 후보 유망 try#2 마킹 try#2 삭제' }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('row', {
@@ -170,7 +172,7 @@ describe('ProjectDetailPage', () => {
     await user.selectOptions(screen.getByLabelText('Try 상태 필터'), 'CANDIDATE')
 
     expect(
-      screen.getByRole('row', { name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제' }),
+      screen.getByRole('row', { name: 'try#2 API 후보 후보 유망 try#2 마킹 try#2 삭제' }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('row', {
@@ -189,10 +191,12 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('의미 있는 Try 2건')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '프로젝트 의미 Try' })).toBeInTheDocument()
     expect(
-      screen.getByRole('row', { name: 'API 신물 억제 그룹 try#2 API 후보 후보' }),
+      screen.getByRole('row', { name: 'API 신물 억제 그룹 try#2 API 후보 후보 유망 관능 후보' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('row', { name: '맛 개선 그룹 try#10 감미료 조정 테스트 완료' }),
+      screen.getByRole('row', {
+        name: '맛 개선 그룹 try#10 감미료 조정 테스트 완료 최종 후보 최종 후보 검토',
+      }),
     ).toBeInTheDocument()
   })
 
@@ -254,23 +258,31 @@ describe('ProjectDetailPage', () => {
     apiPostMock.mockResolvedValueOnce({
       id: 'api-mark-1',
       tryId: 'api-try-1',
-      type: 'PROMISING',
+      type: 'ISSUE_FOUND',
+      reason: '쓴맛 과다',
     })
 
     renderProjectDetail()
 
     await findApiCandidateRow()
 
+    await user.selectOptions(screen.getByLabelText('마킹 유형'), 'ISSUE_FOUND')
+    await user.type(screen.getByLabelText('마킹 사유'), '쓴맛 과다')
     await user.click(screen.getByRole('button', { name: 'try#1 마킹' }))
 
     expect(apiPostMock).toHaveBeenCalledWith('/projects/tries/api-try-1/marks', {
-      type: 'PROMISING',
-      reason: '의미 있는 시도로 마킹',
+      type: 'ISSUE_FOUND',
+      reason: '쓴맛 과다',
     })
     expect(screen.getByText('의미 있는 Try 2건')).toBeInTheDocument()
     expect(
       screen.getByRole('row', {
-        name: 'try#1 기준 처방 테스트 예정 마킹됨 try#1 마킹 try#1 삭제',
+        name: 'try#1 기준 처방 테스트 예정 문제 발견 try#1 마킹 try#1 삭제',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', {
+        name: 'API 신물 억제 그룹 try#1 기준 처방 테스트 예정 문제 발견 쓴맛 과다',
       }),
     ).toBeInTheDocument()
   })
