@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type ClipboardEvent, useState } from 'react'
 import './FormulaInputTable.css'
 
 export type FormulaRow = {
@@ -39,6 +39,10 @@ const voiceDraftRows = [
 
 const recentIngredientStorageKey = 'kolma:recent-ingredients'
 const maxRecentIngredientCount = 8
+const formulaColumnKeys = ['ingredientName', 'amount', 'unit', 'ratio', 'note'] as const
+const supportedUnits = new Set(['mg', 'g', '%', 'ppm'])
+
+type FormulaColumnKey = (typeof formulaColumnKeys)[number]
 
 export function FormulaInputTable({ rows, onChange }: Props) {
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false)
@@ -62,17 +66,81 @@ export function FormulaInputTable({ rows, onChange }: Props) {
   }
 
   function recordRecentIngredient(ingredientName: string) {
-    const normalized = normalizeIngredientName(ingredientName)
+    recordRecentIngredients([ingredientName])
+  }
 
-    if (!normalized) {
+  function recordRecentIngredients(ingredientNames: string[]) {
+    const normalizedIngredients = ingredientNames
+      .map(normalizeIngredientName)
+      .filter((ingredientName) => ingredientName.length > 0)
+
+    if (!normalizedIngredients.length) {
       return
     }
 
     setRecentIngredients((current) => {
-      const next = mergeRecentIngredients(normalized, current)
+      let next = current
+
+      for (const ingredientName of [...normalizedIngredients].reverse()) {
+        next = mergeRecentIngredients(ingredientName, next)
+      }
+
       writeRecentIngredients(next)
       return next
     })
+  }
+
+  function handleSpreadsheetPaste(
+    rowIndex: number,
+    columnKey: FormulaColumnKey,
+    event: ClipboardEvent<HTMLInputElement>,
+  ) {
+    const clipboardText = event.clipboardData.getData('text/plain')
+
+    if (!isSpreadsheetPaste(clipboardText)) {
+      return
+    }
+
+    const pastedRows = parseSpreadsheetRows(clipboardText)
+
+    if (!pastedRows.length) {
+      return
+    }
+
+    event.preventDefault()
+
+    const columnStart = formulaColumnKeys.indexOf(columnKey)
+    const nextRows = [...rows]
+
+    pastedRows.forEach((pastedRow, pastedRowIndex) => {
+      const targetIndex = rowIndex + pastedRowIndex
+      const baseRow = nextRows[targetIndex] ?? { ...emptyRow }
+      const nextRow = { ...baseRow }
+
+      pastedRow.forEach((cell, cellIndex) => {
+        const targetColumn = formulaColumnKeys[columnStart + cellIndex]
+
+        if (!targetColumn) {
+          return
+        }
+
+        if (targetColumn === 'unit') {
+          nextRow.unit = normalizeUnit(cell, baseRow.unit)
+          return
+        }
+
+        nextRow[targetColumn] = cell.trim()
+      })
+
+      nextRows[targetIndex] = nextRow
+    })
+
+    onChange(nextRows)
+    recordRecentIngredients(
+      nextRows
+        .slice(rowIndex, rowIndex + pastedRows.length)
+        .map((row) => row.ingredientName),
+    )
   }
 
   function applyRecentIngredient(ingredientName: string) {
@@ -204,6 +272,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                     value={row.ingredientName}
                     onChange={(event) => updateRow(index, 'ingredientName', event.target.value)}
                     onBlur={(event) => recordRecentIngredient(event.target.value)}
+                    onPaste={(event) => handleSpreadsheetPaste(index, 'ingredientName', event)}
                     placeholder="예: 비타민 C"
                   />
                 </td>
@@ -216,6 +285,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                     inputMode="decimal"
                     value={row.amount}
                     onChange={(event) => updateRow(index, 'amount', event.target.value)}
+                    onPaste={(event) => handleSpreadsheetPaste(index, 'amount', event)}
                     placeholder="0"
                   />
                 </td>
@@ -243,6 +313,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                     inputMode="decimal"
                     value={row.ratio}
                     onChange={(event) => updateRow(index, 'ratio', event.target.value)}
+                    onPaste={(event) => handleSpreadsheetPaste(index, 'ratio', event)}
                     placeholder="%"
                   />
                 </td>
@@ -254,6 +325,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                     id={`note-${index}`}
                     value={row.note}
                     onChange={(event) => updateRow(index, 'note', event.target.value)}
+                    onPaste={(event) => handleSpreadsheetPaste(index, 'note', event)}
                     placeholder="역할, 맛, 색, 이슈"
                   />
                 </td>
@@ -330,4 +402,22 @@ function compactRecentIngredients(ingredients: string[]) {
 
 function normalizeIngredientName(ingredientName: string) {
   return ingredientName.trim().replace(/\s+/g, ' ')
+}
+
+function isSpreadsheetPaste(clipboardText: string) {
+  return clipboardText.includes('\t') || clipboardText.includes('\n')
+}
+
+function parseSpreadsheetRows(clipboardText: string) {
+  return clipboardText
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((row) => row.split('\t'))
+    .filter((row) => row.some((cell) => cell.trim().length > 0))
+}
+
+function normalizeUnit(unit: string, fallbackUnit: string) {
+  const normalized = unit.trim()
+  return supportedUnits.has(normalized) ? normalized : fallbackUnit
 }

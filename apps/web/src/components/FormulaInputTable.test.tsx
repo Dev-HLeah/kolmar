@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { within } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -103,5 +103,39 @@ describe('FormulaInputTable', () => {
       ])
     })
     expect(screen.getByRole('button', { name: '아연' })).toBeInTheDocument()
+  })
+
+  it('pastes spreadsheet rows into formula inputs and recent ingredients', async () => {
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    fireEvent.paste(screen.getByLabelText('원료명 1'), {
+      clipboardData: {
+        getData: () => '비타민 C\t500\tmg\t20\t산미 조절\n아연\t8\tmg\t1\t상한 확인',
+      },
+    })
+
+    expect(screen.getByLabelText('원료명 1')).toHaveValue('비타민 C')
+    expect(screen.getByLabelText('함량 1')).toHaveValue('500')
+    expect(screen.getByLabelText('단위 1')).toHaveValue('mg')
+    expect(screen.getByLabelText('비율 1')).toHaveValue('20')
+    expect(screen.getByLabelText('메모 1')).toHaveValue('산미 조절')
+
+    expect(screen.getByLabelText('원료명 2')).toHaveValue('아연')
+    expect(screen.getByLabelText('함량 2')).toHaveValue('8')
+    expect(screen.getByLabelText('단위 2')).toHaveValue('mg')
+    expect(screen.getByLabelText('비율 2')).toHaveValue('1')
+    expect(screen.getByLabelText('메모 2')).toHaveValue('상한 확인')
+
+    const recentRegion = screen.getByRole('region', { name: '최근 사용 원료' })
+    expect(within(recentRegion).getByRole('button', { name: '비타민 C' })).toBeInTheDocument()
+    expect(within(recentRegion).getByRole('button', { name: '아연' })).toBeInTheDocument()
   })
 })
