@@ -186,6 +186,27 @@ describe('FormulaInputTable', () => {
     expect(screen.getByLabelText('단위 2')).toHaveValue('g')
   })
 
+  it('splits amount and unit when pasting one value into an amount cell', () => {
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    fireEvent.paste(screen.getByLabelText('함량 1'), {
+      clipboardData: {
+        getData: () => '0.25그램',
+      },
+    })
+
+    expect(screen.getByLabelText('함량 1')).toHaveValue('0.25')
+    expect(screen.getByLabelText('단위 1')).toHaveValue('g')
+  })
+
   it('converts amount units between grams and milligrams', async () => {
     const user = userEvent.setup()
 

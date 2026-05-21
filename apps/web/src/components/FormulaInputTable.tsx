@@ -223,6 +223,30 @@ export function FormulaInputTable({ rows, onChange }: Props) {
     )
   }
 
+  function handleAmountPaste(index: number, event: ClipboardEvent<HTMLInputElement>) {
+    const clipboardText = event.clipboardData.getData('text/plain')
+
+    if (isSpreadsheetPaste(clipboardText)) {
+      handleSpreadsheetPaste(index, 'amount', event)
+      return
+    }
+
+    const parsedAmount = parseAmountWithOptionalUnit(clipboardText)
+
+    if (!parsedAmount.unit) {
+      return
+    }
+
+    event.preventDefault()
+    onChange(
+      rows.map((row, rowIndex) =>
+        rowIndex === index
+          ? { ...row, amount: parsedAmount.amount, unit: parsedAmount.unit }
+          : row,
+      ),
+    )
+  }
+
   function applyRecentIngredient(ingredientName: string) {
     const normalized = normalizeIngredientName(ingredientName)
 
@@ -460,7 +484,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                       inputMode="decimal"
                       value={row.amount}
                       onChange={(event) => updateRow(index, 'amount', event.target.value)}
-                      onPaste={(event) => handleSpreadsheetPaste(index, 'amount', event)}
+                      onPaste={(event) => handleAmountPaste(index, event)}
                       placeholder="0"
                     />
                   </td>
