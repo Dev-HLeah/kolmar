@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { apiGet } from '../api/client'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './WorkflowPages.css'
@@ -233,6 +233,11 @@ export function ProductDetailPage() {
           <h2>{summary.name}</h2>
           <p>{summary.description}</p>
         </div>
+        {productId ? (
+          <Link className="workflow-primary-link" to={`/projects?sourceProductId=${productId}`}>
+            이 제품으로 프로젝트 시작
+          </Link>
+        ) : null}
       </section>
       {notice ? <p className="local-notice">{notice}</p> : null}
       <FormulaInputTable rows={rows} onChange={setRows} />

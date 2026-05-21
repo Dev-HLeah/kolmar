@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { apiPost } from '../api/client'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { apiGet, apiPost } from '../api/client'
 import './WorkflowPages.css'
 
 type ProjectDraft = {
@@ -16,12 +16,27 @@ type ApiProject = {
   id: string
   name: string
   sourceProductId?: string | null
+  sourceFormulaId?: string | null
 }
 
 type ApiExperimentGroup = {
   id: string
   name: string
   tries?: unknown[]
+}
+
+type ApiProduct = {
+  id: string
+  name: string
+  formulas?: Array<{
+    id?: string | null
+  }>
+}
+
+type ProductSourceOption = {
+  id: string
+  label: string
+  formulaId?: string | null
 }
 
 const seededProjects: ProjectDraft[] = [
@@ -34,27 +49,70 @@ const seededProjects: ProjectDraft[] = [
   },
 ]
 
-const projectSourceOptions = [
-  { id: 'sample-1', label: '콜마 고형제 기준 처방' },
-  { id: '', label: '선택 안 함' },
+const noSourceOption: ProductSourceOption = { id: '', label: '선택 안 함', formulaId: null }
+
+const fallbackSourceOptions: ProductSourceOption[] = [
+  { id: 'sample-1', label: '콜마 고형제 기준 처방', formulaId: null },
+  noSourceOption,
 ]
 
 const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
 
 export function ProjectsPage() {
+  const [searchParams] = useSearchParams()
+  const requestedSourceProductId = searchParams.get('sourceProductId') ?? ''
   const [name, setName] = useState('')
-  const [sourceProductId, setSourceProductId] = useState('sample-1')
+  const [sourceOptions, setSourceOptions] = useState(fallbackSourceOptions)
+  const [sourceProductId, setSourceProductId] = useState(
+    requestedSourceProductId || fallbackSourceOptions[0].id,
+  )
   const [groupName, setGroupName] = useState('신물 억제')
   const [projects, setProjects] = useState(seededProjects)
   const [notice, setNotice] = useState('')
 
+  useEffect(() => {
+    let isActive = true
+
+    async function loadProductSources() {
+      try {
+        const products = await apiGet<ApiProduct[]>('/products')
+
+        if (!isActive) {
+          return
+        }
+
+        const nextOptions = toSourceOptions(products)
+        setSourceOptions(nextOptions)
+        setSourceProductId((current) =>
+          selectInitialSourceId(nextOptions, requestedSourceProductId, current),
+        )
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setSourceOptions(fallbackSourceOptions)
+        setSourceProductId((current) =>
+          selectInitialSourceId(fallbackSourceOptions, requestedSourceProductId, current),
+        )
+      }
+    }
+
+    void loadProductSources()
+
+    return () => {
+      isActive = false
+    }
+  }, [requestedSourceProductId])
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const selectedSource = findSourceOption(sourceOptions, sourceProductId)
 
     const draftProject: ProjectDraft = {
       id: `draft-project-${projects.length + 1}`,
       name: name.trim() || '신규 프로젝트',
-      source: sourceLabel(sourceProductId),
+      source: sourceLabel(sourceOptions, sourceProductId),
       groupName: groupName.trim() || '기본 그룹',
       tryCount: 0,
     }
@@ -82,7 +140,7 @@ export function ProjectsPage() {
         costRange: null,
         excludedIngredients: null,
         sourceProductId: nullableText(sourceProductId),
-        sourceFormulaId: null,
+        sourceFormulaId: selectedSource?.formulaId ?? null,
       })
 
       const createdGroup = await apiPost<
@@ -100,7 +158,7 @@ export function ProjectsPage() {
         {
           id: createdProject.id,
           name: createdProject.name,
-          source: sourceLabel(createdProject.sourceProductId ?? sourceProductId),
+          source: sourceLabel(sourceOptions, createdProject.sourceProductId ?? sourceProductId),
           groupName: createdGroup.name.trim() || draftProject.groupName,
           tryCount: createdGroup.tries?.length ?? 0,
         },
@@ -141,7 +199,7 @@ export function ProjectsPage() {
                 value={sourceProductId}
                 onChange={(event) => setSourceProductId(event.target.value)}
               >
-                {projectSourceOptions.map((source) => (
+                {sourceOptions.map((source) => (
                   <option key={source.label} value={source.id}>
                     {source.label}
                   </option>
@@ -197,11 +255,43 @@ export function ProjectsPage() {
   )
 }
 
-function sourceLabel(sourceProductId?: string | null) {
+function toSourceOptions(products: ApiProduct[]): ProductSourceOption[] {
+  const productOptions = products
+    .filter((product) => product.id.trim() && product.name.trim())
+    .map((product) => ({
+      id: product.id,
+      label: product.name,
+      formulaId: product.formulas?.[0]?.id ?? null,
+    }))
+
+  return [...productOptions, noSourceOption]
+}
+
+function selectInitialSourceId(
+  sourceOptions: ProductSourceOption[],
+  requestedSourceProductId: string,
+  currentSourceProductId: string,
+) {
+  if (requestedSourceProductId && findSourceOption(sourceOptions, requestedSourceProductId)) {
+    return requestedSourceProductId
+  }
+
+  if (findSourceOption(sourceOptions, currentSourceProductId)) {
+    return currentSourceProductId
+  }
+
+  return sourceOptions[0]?.id ?? ''
+}
+
+function sourceLabel(sourceOptions: ProductSourceOption[], sourceProductId?: string | null) {
   return (
-    projectSourceOptions.find((source) => source.id === (sourceProductId ?? ''))?.label ??
+    findSourceOption(sourceOptions, sourceProductId ?? '')?.label ??
     '선택 안 함'
   )
+}
+
+function findSourceOption(sourceOptions: ProductSourceOption[], sourceProductId: string) {
+  return sourceOptions.find((source) => source.id === sourceProductId)
 }
 
 function nullableText(value?: string | null) {

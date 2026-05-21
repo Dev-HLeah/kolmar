@@ -84,6 +84,39 @@ describe('ProductDetailPage', () => {
     expect(screen.getByLabelText('원료명 2')).toHaveValue('아연')
   })
 
+  it('links to project creation with the current product as source', async () => {
+    apiGetMock.mockImplementation(async (path) => {
+      if (path === '/products/product-api-1/similar-formulas') {
+        return []
+      }
+
+      if (path === '/products/product-api-1/formulation-guidance') {
+        return {
+          productId: 'product-api-1',
+          dosageFormName: '정제',
+          packagingName: 'PTP',
+          kolmarSpecial: false,
+          summary: '정제 기반 초기 안정성 신호를 검토합니다.',
+          signals: [],
+        }
+      }
+
+      return {
+        id: 'product-api-1',
+        name: 'API 제품 처방',
+        function: '위 건강',
+        dosageForm: { name: '정제' },
+        packaging: { name: 'PTP' },
+        formulas: [],
+      }
+    })
+
+    renderProductDetail()
+
+    const link = await screen.findByRole('link', { name: '이 제품으로 프로젝트 시작' })
+    expect(link).toHaveAttribute('href', '/projects?sourceProductId=product-api-1')
+  })
+
   it('keeps the sample formula visible when the API is unavailable', async () => {
     apiGetMock.mockRejectedValueOnce(new Error('API offline'))
 
