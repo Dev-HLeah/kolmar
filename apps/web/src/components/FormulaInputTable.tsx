@@ -190,7 +190,22 @@ export function FormulaInputTable({ rows, onChange }: Props) {
         }
 
         if (targetColumn === 'unit') {
+          if (!cell.trim()) {
+            return
+          }
+
           nextRow.unit = normalizeUnit(cell, baseRow.unit)
+          return
+        }
+
+        if (targetColumn === 'amount') {
+          const parsedAmount = parseAmountWithOptionalUnit(cell)
+          nextRow.amount = parsedAmount.amount
+
+          if (parsedAmount.unit) {
+            nextRow.unit = parsedAmount.unit
+          }
+
           return
         }
 
@@ -821,6 +836,32 @@ function parseSpreadsheetRows(clipboardText: string) {
     .split('\n')
     .map((row) => row.split('\t'))
     .filter((row) => row.some((cell) => cell.trim().length > 0))
+}
+
+function parseAmountWithOptionalUnit(value: string) {
+  const trimmed = value.trim()
+  const match = trimmed.match(/^([+-]?(?:(?:\d[\d,]*)(?:\.\d+)?|\.\d+))\s*(.+)$/)
+
+  if (!match) {
+    return {
+      amount: trimmed,
+      unit: null,
+    }
+  }
+
+  const unit = normalizeUnit(match[2], '')
+
+  if (!unit) {
+    return {
+      amount: trimmed,
+      unit: null,
+    }
+  }
+
+  return {
+    amount: match[1].replace(/,/g, ''),
+    unit,
+  }
 }
 
 function normalizeUnit(unit: string, fallbackUnit: string) {

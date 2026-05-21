@@ -162,6 +162,30 @@ describe('FormulaInputTable', () => {
     expect(screen.getByLabelText('단위 3')).toHaveValue('ppm')
   })
 
+  it('splits amount and unit when spreadsheet paste includes unit in amount cells', () => {
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    fireEvent.paste(screen.getByLabelText('원료명 1'), {
+      clipboardData: {
+        getData: () =>
+          '비타민 C\t500 mg\t\t20\t산미 조절\n아연\t0.008그램\t\t1\t상한 확인',
+      },
+    })
+
+    expect(screen.getByLabelText('함량 1')).toHaveValue('500')
+    expect(screen.getByLabelText('단위 1')).toHaveValue('mg')
+    expect(screen.getByLabelText('함량 2')).toHaveValue('0.008')
+    expect(screen.getByLabelText('단위 2')).toHaveValue('g')
+  })
+
   it('converts amount units between grams and milligrams', async () => {
     const user = userEvent.setup()
 
