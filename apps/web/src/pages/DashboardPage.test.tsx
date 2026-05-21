@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -154,10 +154,13 @@ describe('DashboardPage', () => {
     await user.click(screen.getByRole('button', { name: 'AI 후보 Try 생성' }))
 
     expect(await screen.findByRole('heading', { name: '안전/규제 신호' })).toBeInTheDocument()
+    const signalPanel = screen.getByRole('heading', { name: '안전/규제 신호' }).closest('section')
+    expect(signalPanel).not.toBeNull()
+
     expect(screen.getByText('상한 섭취량 검토')).toBeInTheDocument()
     expect(screen.getByText('아연 45mg 입력값은 일일 섭취량 상한 검토가 필요합니다.')).toBeInTheDocument()
     expect(screen.getByText('rule-of-thumb')).toBeInTheDocument()
-    expect(screen.getByText('아연')).toBeInTheDocument()
+    expect(within(signalPanel as HTMLElement).getByText('아연')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '상한 섭취량 검토 근거 검색' })).toHaveAttribute(
       'href',
       '/knowledge?q=%EC%95%84%EC%97%B0',
@@ -176,8 +179,11 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('API 연결 실패로 로컬 후보 초안을 표시합니다.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '안정성 우선 로컬 후보' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '안전/규제 신호' })).toBeInTheDocument()
+    const signalPanel = screen.getByRole('heading', { name: '안전/규제 신호' }).closest('section')
+    expect(signalPanel).not.toBeNull()
+
     expect(screen.getByText('상한 섭취량 검토')).toBeInTheDocument()
-    expect(screen.getByText('아연')).toBeInTheDocument()
+    expect(within(signalPanel as HTMLElement).getByText('아연')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '상한 섭취량 검토 근거 검색' })).toHaveAttribute(
       'href',
       '/knowledge?q=%EC%95%84%EC%97%B0',

@@ -71,6 +71,47 @@
   background: var(--danger-soft);
 }
 
+.recent-ingredients {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.recent-ingredients span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.recent-ingredients div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recent-ingredient-button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--surface-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.recent-ingredient-button:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
 .voice-draft-panel {
   display: grid;
   gap: 12px;
@@ -214,6 +255,10 @@
   .formula-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .recent-ingredients {
+    grid-template-columns: 1fr;
   }
 
   .voice-draft-heading {

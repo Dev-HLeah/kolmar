@@ -1,11 +1,15 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { within } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { FormulaInputTable, type FormulaRow } from './FormulaInputTable'
 
 describe('FormulaInputTable', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
   it('adds and updates optional formula rows without forcing all values', async () => {
     const user = userEvent.setup()
 
@@ -53,5 +57,51 @@ describe('FormulaInputTable', () => {
     expect(within(draftPanel).getByRole('columnheader', { name: '단위' })).toBeInTheDocument()
     expect(within(draftPanel).getByRole('columnheader', { name: '상태' })).toBeInTheDocument()
     expect(screen.getByLabelText('원료명 1')).toHaveValue('')
+  })
+
+  it('fills the first empty ingredient row from recent ingredients', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem('kolma:recent-ingredients', JSON.stringify(['아연', '비타민 C']))
+
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    const recentRegion = screen.getByRole('region', { name: '최근 사용 원료' })
+    expect(within(recentRegion).getByRole('button', { name: '아연' })).toBeInTheDocument()
+
+    await user.click(within(recentRegion).getByRole('button', { name: '아연' }))
+
+    expect(screen.getByLabelText('원료명 1')).toHaveValue('아연')
+  })
+
+  it('stores confirmed ingredient names as recent ingredients', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    await user.type(screen.getByLabelText('원료명 1'), '아연')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem('kolma:recent-ingredients') ?? '[]')).toEqual([
+        '아연',
+      ])
+    })
+    expect(screen.getByRole('button', { name: '아연' })).toBeInTheDocument()
   })
 })

@@ -37,8 +37,12 @@ const voiceDraftRows = [
   },
 ]
 
+const recentIngredientStorageKey = 'kolma:recent-ingredients'
+const maxRecentIngredientCount = 8
+
 export function FormulaInputTable({ rows, onChange }: Props) {
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false)
+  const [recentIngredients, setRecentIngredients] = useState(readRecentIngredients)
 
   function updateRow(index: number, key: keyof FormulaRow, value: string) {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)))
@@ -55,6 +59,42 @@ export function FormulaInputTable({ rows, onChange }: Props) {
     }
 
     onChange(rows.filter((_, rowIndex) => rowIndex !== index))
+  }
+
+  function recordRecentIngredient(ingredientName: string) {
+    const normalized = normalizeIngredientName(ingredientName)
+
+    if (!normalized) {
+      return
+    }
+
+    setRecentIngredients((current) => {
+      const next = mergeRecentIngredients(normalized, current)
+      writeRecentIngredients(next)
+      return next
+    })
+  }
+
+  function applyRecentIngredient(ingredientName: string) {
+    const normalized = normalizeIngredientName(ingredientName)
+
+    if (!normalized) {
+      return
+    }
+
+    const emptyRowIndex = rows.findIndex((row) => row.ingredientName.trim().length === 0)
+
+    if (emptyRowIndex >= 0) {
+      onChange(
+        rows.map((row, rowIndex) =>
+          rowIndex === emptyRowIndex ? { ...row, ingredientName: normalized } : row,
+        ),
+      )
+    } else {
+      onChange([...rows, { ...emptyRow, ingredientName: normalized }])
+    }
+
+    recordRecentIngredient(normalized)
   }
 
   return (
@@ -80,6 +120,24 @@ export function FormulaInputTable({ rows, onChange }: Props) {
           </button>
         </div>
       </div>
+
+      {recentIngredients.length ? (
+        <section className="recent-ingredients" aria-label="최근 사용 원료">
+          <span>최근 사용 원료</span>
+          <div>
+            {recentIngredients.map((ingredientName) => (
+              <button
+                type="button"
+                className="recent-ingredient-button"
+                key={ingredientName}
+                onClick={() => applyRecentIngredient(ingredientName)}
+              >
+                {ingredientName}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {isVoicePanelOpen ? (
         <section
@@ -145,6 +203,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                     id={`ingredient-${index}`}
                     value={row.ingredientName}
                     onChange={(event) => updateRow(index, 'ingredientName', event.target.value)}
+                    onBlur={(event) => recordRecentIngredient(event.target.value)}
                     placeholder="예: 비타민 C"
                   />
                 </td>
@@ -210,4 +269,65 @@ export function FormulaInputTable({ rows, onChange }: Props) {
       </div>
     </div>
   )
+}
+
+function readRecentIngredients() {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(recentIngredientStorageKey) ?? '[]')
+
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return compactRecentIngredients(parsed.filter((item): item is string => typeof item === 'string'))
+  } catch {
+    return []
+  }
+}
+
+function writeRecentIngredients(ingredients: string[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(recentIngredientStorageKey, JSON.stringify(ingredients))
+  } catch {
+    // Local storage can be unavailable in restricted browser contexts.
+  }
+}
+
+function mergeRecentIngredients(ingredientName: string, current: string[]) {
+  return compactRecentIngredients([ingredientName, ...current])
+}
+
+function compactRecentIngredients(ingredients: string[]) {
+  const seen = new Set<string>()
+  const compacted: string[] = []
+
+  for (const ingredient of ingredients) {
+    const normalized = normalizeIngredientName(ingredient)
+    const key = normalized.toLocaleLowerCase('ko-KR')
+
+    if (!normalized || seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    compacted.push(normalized)
+
+    if (compacted.length >= maxRecentIngredientCount) {
+      break
+    }
+  }
+
+  return compacted
+}
+
+function normalizeIngredientName(ingredientName: string) {
+  return ingredientName.trim().replace(/\s+/g, ' ')
 }
