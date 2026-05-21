@@ -14,6 +14,11 @@ type Props = {
   onChange: (rows: FormulaRow[]) => void
 }
 
+type IngredientSuggestion = {
+  name: string
+  keywords: string[]
+}
+
 const emptyRow: FormulaRow = {
   ingredientName: '',
   amount: '',
@@ -42,12 +47,21 @@ const maxRecentIngredientCount = 8
 const formulaColumnKeys = ['ingredientName', 'amount', 'unit', 'ratio', 'note'] as const
 const supportedUnits = new Set(['mg', 'g', '%', 'ppm'])
 const convertibleUnits = new Set(['mg', 'g'])
+const baseIngredientSuggestions: IngredientSuggestion[] = [
+  { name: '비타민 C', keywords: ['비타', 'vitamin c', 'ascorbic', '아스코르브산'] },
+  { name: '아연', keywords: ['zinc', 'zn'] },
+  { name: '테아닌', keywords: ['theanine', 'l-theanine'] },
+  { name: '마그네슘', keywords: ['magnesium', 'mg'] },
+  { name: '프로바이오틱스', keywords: ['probiotic', '유산균'] },
+  { name: '오메가3', keywords: ['omega 3', 'dha', 'epa'] },
+]
 
 type FormulaColumnKey = (typeof formulaColumnKeys)[number]
 
 export function FormulaInputTable({ rows, onChange }: Props) {
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false)
   const [recentIngredients, setRecentIngredients] = useState(readRecentIngredients)
+  const [activeSuggestionRow, setActiveSuggestionRow] = useState<number | null>(null)
 
   function updateRow(index: number, key: keyof FormulaRow, value: string) {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)))
@@ -197,6 +211,18 @@ export function FormulaInputTable({ rows, onChange }: Props) {
     recordRecentIngredient(normalized)
   }
 
+  function applyIngredientSuggestion(index: number, ingredientName: string) {
+    const normalized = normalizeIngredientName(ingredientName)
+
+    if (!normalized) {
+      return
+    }
+
+    updateRow(index, 'ingredientName', normalized)
+    recordRecentIngredient(normalized)
+    setActiveSuggestionRow(null)
+  }
+
   return (
     <div className="formula-input">
       <div className="formula-toolbar">
@@ -293,101 +319,144 @@ export function FormulaInputTable({ rows, onChange }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={index}>
-                <td>
-                  <label className="sr-only" htmlFor={`ingredient-${index}`}>
-                    원료명 {index + 1}
-                  </label>
-                  <input
-                    id={`ingredient-${index}`}
-                    value={row.ingredientName}
-                    onChange={(event) => updateRow(index, 'ingredientName', event.target.value)}
-                    onBlur={(event) => recordRecentIngredient(event.target.value)}
-                    onPaste={(event) => handleSpreadsheetPaste(index, 'ingredientName', event)}
-                    placeholder="예: 비타민 C"
-                  />
-                </td>
-                <td>
-                  <label className="sr-only" htmlFor={`amount-${index}`}>
-                    함량 {index + 1}
-                  </label>
-                  <input
-                    id={`amount-${index}`}
-                    inputMode="decimal"
-                    value={row.amount}
-                    onChange={(event) => updateRow(index, 'amount', event.target.value)}
-                    onPaste={(event) => handleSpreadsheetPaste(index, 'amount', event)}
-                    placeholder="0"
-                  />
-                </td>
-                <td>
-                  <label className="sr-only" htmlFor={`unit-${index}`}>
-                    단위 {index + 1}
-                  </label>
-                  <div className="unit-control">
-                    <select
-                      id={`unit-${index}`}
-                      value={row.unit}
-                      onChange={(event) => updateRow(index, 'unit', event.target.value)}
-                    >
-                      <option value="mg">mg</option>
-                      <option value="g">g</option>
-                      <option value="%">%</option>
-                      <option value="ppm">ppm</option>
-                    </select>
-                    <div className="unit-conversion-actions">
-                      <button
-                        type="button"
-                        aria-label={`${index + 1}행 mg로 변환`}
-                        disabled={!canConvertUnit(row, 'mg')}
-                        onClick={() => convertUnit(index, 'mg')}
-                      >
-                        mg
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`${index + 1}행 g로 변환`}
-                        disabled={!canConvertUnit(row, 'g')}
-                        onClick={() => convertUnit(index, 'g')}
-                      >
-                        g
-                      </button>
+            {rows.map((row, index) => {
+              const ingredientSuggestions = getIngredientSuggestions(
+                row.ingredientName,
+                recentIngredients,
+              )
+              const shouldShowSuggestions =
+                activeSuggestionRow === index && ingredientSuggestions.length > 0
+
+              return (
+                <tr key={index}>
+                  <td>
+                    <div className="ingredient-input-cell">
+                      <label className="sr-only" htmlFor={`ingredient-${index}`}>
+                        원료명 {index + 1}
+                      </label>
+                      <input
+                        id={`ingredient-${index}`}
+                        value={row.ingredientName}
+                        onFocus={() => setActiveSuggestionRow(index)}
+                        onChange={(event) => {
+                          updateRow(index, 'ingredientName', event.target.value)
+                          setActiveSuggestionRow(index)
+                        }}
+                        onBlur={(event) => {
+                          recordRecentIngredient(event.target.value)
+                          setActiveSuggestionRow((current) =>
+                            current === index ? null : current,
+                          )
+                        }}
+                        onPaste={(event) =>
+                          handleSpreadsheetPaste(index, 'ingredientName', event)
+                        }
+                        placeholder="예: 비타민 C"
+                      />
+                      {shouldShowSuggestions ? (
+                        <section
+                          className="ingredient-suggestions"
+                          aria-label={`원료 자동완성 ${index + 1}`}
+                        >
+                          {ingredientSuggestions.map((ingredientName) => (
+                            <button
+                              type="button"
+                              key={ingredientName}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => applyIngredientSuggestion(index, ingredientName)}
+                            >
+                              {ingredientName}
+                            </button>
+                          ))}
+                        </section>
+                      ) : null}
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <label className="sr-only" htmlFor={`ratio-${index}`}>
-                    비율 {index + 1}
-                  </label>
-                  <input
-                    id={`ratio-${index}`}
-                    inputMode="decimal"
-                    value={row.ratio}
-                    onChange={(event) => updateRow(index, 'ratio', event.target.value)}
-                    onPaste={(event) => handleSpreadsheetPaste(index, 'ratio', event)}
-                    placeholder="%"
-                  />
-                </td>
-                <td>
-                  <label className="sr-only" htmlFor={`note-${index}`}>
-                    메모 {index + 1}
-                  </label>
-                  <input
-                    id={`note-${index}`}
-                    value={row.note}
-                    onChange={(event) => updateRow(index, 'note', event.target.value)}
-                    onPaste={(event) => handleSpreadsheetPaste(index, 'note', event)}
-                    placeholder="역할, 맛, 색, 이슈"
-                  />
-                </td>
-                <td>
-                  <button type="button" className="text-button" onClick={() => removeRow(index)}>
-                    삭제
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>
+                    <label className="sr-only" htmlFor={`amount-${index}`}>
+                      함량 {index + 1}
+                    </label>
+                    <input
+                      id={`amount-${index}`}
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(event) => updateRow(index, 'amount', event.target.value)}
+                      onPaste={(event) => handleSpreadsheetPaste(index, 'amount', event)}
+                      placeholder="0"
+                    />
+                  </td>
+                  <td>
+                    <label className="sr-only" htmlFor={`unit-${index}`}>
+                      단위 {index + 1}
+                    </label>
+                    <div className="unit-control">
+                      <select
+                        id={`unit-${index}`}
+                        value={row.unit}
+                        onChange={(event) => updateRow(index, 'unit', event.target.value)}
+                      >
+                        <option value="mg">mg</option>
+                        <option value="g">g</option>
+                        <option value="%">%</option>
+                        <option value="ppm">ppm</option>
+                      </select>
+                      <div className="unit-conversion-actions">
+                        <button
+                          type="button"
+                          aria-label={`${index + 1}행 mg로 변환`}
+                          disabled={!canConvertUnit(row, 'mg')}
+                          onClick={() => convertUnit(index, 'mg')}
+                        >
+                          mg
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`${index + 1}행 g로 변환`}
+                          disabled={!canConvertUnit(row, 'g')}
+                          onClick={() => convertUnit(index, 'g')}
+                        >
+                          g
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <label className="sr-only" htmlFor={`ratio-${index}`}>
+                      비율 {index + 1}
+                    </label>
+                    <input
+                      id={`ratio-${index}`}
+                      inputMode="decimal"
+                      value={row.ratio}
+                      onChange={(event) => updateRow(index, 'ratio', event.target.value)}
+                      onPaste={(event) => handleSpreadsheetPaste(index, 'ratio', event)}
+                      placeholder="%"
+                    />
+                  </td>
+                  <td>
+                    <label className="sr-only" htmlFor={`note-${index}`}>
+                      메모 {index + 1}
+                    </label>
+                    <input
+                      id={`note-${index}`}
+                      value={row.note}
+                      onChange={(event) => updateRow(index, 'note', event.target.value)}
+                      onPaste={(event) => handleSpreadsheetPaste(index, 'note', event)}
+                      placeholder="역할, 맛, 색, 이슈"
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => removeRow(index)}
+                    >
+                      삭제
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -452,8 +521,57 @@ function compactRecentIngredients(ingredients: string[]) {
   return compacted
 }
 
+function getIngredientSuggestions(query: string, recentIngredients: string[]) {
+  const normalizedQuery = normalizeSearchText(query)
+
+  if (!normalizedQuery) {
+    return []
+  }
+
+  return compactIngredientNames([
+    ...recentIngredients,
+    ...baseIngredientSuggestions.map((suggestion) => suggestion.name),
+  ])
+    .filter((ingredientName) => matchesIngredientSuggestion(ingredientName, normalizedQuery))
+    .slice(0, 5)
+}
+
+function matchesIngredientSuggestion(ingredientName: string, normalizedQuery: string) {
+  const baseSuggestion = baseIngredientSuggestions.find(
+    (suggestion) => normalizeSearchText(suggestion.name) === normalizeSearchText(ingredientName),
+  )
+  const searchableValues = [ingredientName, ...(baseSuggestion?.keywords ?? [])]
+
+  return searchableValues
+    .map(normalizeSearchText)
+    .some((searchableValue) => searchableValue.includes(normalizedQuery))
+}
+
+function compactIngredientNames(ingredients: string[]) {
+  const seen = new Set<string>()
+  const compacted: string[] = []
+
+  for (const ingredient of ingredients) {
+    const normalized = normalizeIngredientName(ingredient)
+    const key = normalizeSearchText(normalized)
+
+    if (!normalized || seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    compacted.push(normalized)
+  }
+
+  return compacted
+}
+
 function normalizeIngredientName(ingredientName: string) {
   return ingredientName.trim().replace(/\s+/g, ' ')
+}
+
+function normalizeSearchText(value: string) {
+  return normalizeIngredientName(value).toLocaleLowerCase('ko-KR')
 }
 
 function isSpreadsheetPaste(clipboardText: string) {

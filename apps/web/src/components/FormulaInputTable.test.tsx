@@ -167,4 +167,28 @@ describe('FormulaInputTable', () => {
     expect(screen.getByLabelText('함량 1')).toHaveValue('1.5')
     expect(screen.getByLabelText('단위 1')).toHaveValue('g')
   })
+
+  it('suggests matching ingredients and fills the selected suggestion', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    await user.type(screen.getByLabelText('원료명 1'), '비타')
+
+    const suggestions = screen.getByRole('region', { name: '원료 자동완성 1' })
+    expect(within(suggestions).getByRole('button', { name: '비타민 C' })).toBeInTheDocument()
+
+    await user.click(within(suggestions).getByRole('button', { name: '비타민 C' }))
+
+    expect(screen.getByLabelText('원료명 1')).toHaveValue('비타민 C')
+    expect(screen.queryByRole('region', { name: '원료 자동완성 1' })).not.toBeInTheDocument()
+  })
 })

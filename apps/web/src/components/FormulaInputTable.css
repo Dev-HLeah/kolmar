@@ -221,6 +221,40 @@
   background: #ffffff;
 }
 
+.ingredient-input-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.ingredient-suggestions {
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.ingredient-suggestions button {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text);
+  background: var(--surface-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.ingredient-suggestions button:hover,
+.ingredient-suggestions button:focus {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
 .unit-control {
   display: grid;
   gap: 6px;
