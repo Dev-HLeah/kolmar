@@ -47,6 +47,24 @@ const maxRecentIngredientCount = 8
 const formulaColumnKeys = ['ingredientName', 'amount', 'unit', 'ratio', 'note'] as const
 const supportedUnits = new Set(['mg', 'g', '%', 'ppm'])
 const convertibleUnits = new Set(['mg', 'g'])
+const unitAliases = new Map([
+  ['mg', 'mg'],
+  ['milligram', 'mg'],
+  ['milligrams', 'mg'],
+  ['밀리그램', 'mg'],
+  ['미리그램', 'mg'],
+  ['g', 'g'],
+  ['gram', 'g'],
+  ['grams', 'g'],
+  ['그램', 'g'],
+  ['%', '%'],
+  ['percent', '%'],
+  ['percentage', '%'],
+  ['퍼센트', '%'],
+  ['프로', '%'],
+  ['ppm', 'ppm'],
+  ['피피엠', 'ppm'],
+] satisfies Array<[string, string]>)
 const baseIngredientSuggestions: IngredientSuggestion[] = [
   { name: '비타민 C', keywords: ['비타', 'vitamin c', 'ascorbic', '아스코르브산'] },
   { name: '아연', keywords: ['zinc', 'zn'] },
@@ -807,7 +825,17 @@ function parseSpreadsheetRows(clipboardText: string) {
 
 function normalizeUnit(unit: string, fallbackUnit: string) {
   const normalized = unit.trim()
+  const alias = unitAliases.get(normalizeUnitKey(normalized))
+
+  if (alias && supportedUnits.has(alias)) {
+    return alias
+  }
+
   return supportedUnits.has(normalized) ? normalized : fallbackUnit
+}
+
+function normalizeUnitKey(unit: string) {
+  return unit.toLocaleLowerCase('ko-KR').replace(/\s+/g, '')
 }
 
 function canConvertUnit(row: FormulaRow, targetUnit: 'mg' | 'g') {

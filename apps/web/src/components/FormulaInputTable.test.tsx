@@ -139,6 +139,29 @@ describe('FormulaInputTable', () => {
     expect(within(recentRegion).getByRole('button', { name: '아연' })).toBeInTheDocument()
   })
 
+  it('normalizes Korean unit aliases from spreadsheet paste', () => {
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    fireEvent.paste(screen.getByLabelText('원료명 1'), {
+      clipboardData: {
+        getData: () =>
+          '비타민 C\t0.5\t그램\t20\t고형제 기준\n아연\t8\t밀리그램\t1\t상한 확인\n색소\t10\t피피엠\t\t색상 조절',
+      },
+    })
+
+    expect(screen.getByLabelText('단위 1')).toHaveValue('g')
+    expect(screen.getByLabelText('단위 2')).toHaveValue('mg')
+    expect(screen.getByLabelText('단위 3')).toHaveValue('ppm')
+  })
+
   it('converts amount units between grams and milligrams', async () => {
     const user = userEvent.setup()
 
