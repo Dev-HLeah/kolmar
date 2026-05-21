@@ -86,6 +86,10 @@ describe('ProjectsPage', () => {
         name: '위 건강',
         tries: [],
       })
+      .mockResolvedValueOnce({
+        id: 'try-api-1',
+        tryNumber: 1,
+      })
 
     render(
       <MemoryRouter initialEntries={['/projects?sourceProductId=product-api-2']}>
@@ -112,8 +116,89 @@ describe('ProjectsPage', () => {
       sourceProductId: 'product-api-2',
       sourceFormulaId: 'formula-api-2',
     })
+    expect(apiPostMock).toHaveBeenNthCalledWith(3, '/projects/groups/group-api-2/tries', {
+      tryNumber: 1,
+      status: 'DRAFT',
+      title: '기준 처방',
+      memo: 'API 기준 처방에서 복사한 기준 Try입니다.',
+      ingredients: [],
+    })
     expect(
-      screen.getByRole('row', { name: 'API 기반 프로젝트 API 기준 처방 위 건강 0개' }),
+      screen.getByRole('row', { name: 'API 기반 프로젝트 API 기준 처방 위 건강 1개' }),
+    ).toBeInTheDocument()
+  })
+
+  it('copies the selected product formula into a baseline try', async () => {
+    const user = userEvent.setup()
+    apiGetMock.mockResolvedValueOnce([
+      {
+        id: 'product-api-2',
+        name: 'API 기준 처방',
+        formulas: [
+          {
+            id: 'formula-api-2',
+            ingredients: [
+              {
+                amount: '500',
+                unit: 'mg',
+                ratio: '40',
+                role: '산미',
+                ingredient: {
+                  name: '비타민 C',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ])
+    apiPostMock
+      .mockResolvedValueOnce({
+        id: 'project-api-2',
+        name: 'API 기반 프로젝트',
+        sourceProductId: 'product-api-2',
+        sourceFormulaId: 'formula-api-2',
+      })
+      .mockResolvedValueOnce({
+        id: 'group-api-2',
+        name: '위 건강',
+        tries: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'try-api-1',
+        tryNumber: 1,
+      })
+
+    render(
+      <MemoryRouter initialEntries={['/projects?sourceProductId=product-api-2']}>
+        <ProjectsPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('option', { name: 'API 기준 처방' })).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('그룹명'))
+    await user.type(screen.getByLabelText('그룹명'), '위 건강')
+    await user.type(screen.getByLabelText('프로젝트명'), 'API 기반 프로젝트')
+    await user.click(screen.getByRole('button', { name: '프로젝트 생성' }))
+
+    expect(apiPostMock).toHaveBeenNthCalledWith(3, '/projects/groups/group-api-2/tries', {
+      tryNumber: 1,
+      status: 'DRAFT',
+      title: '기준 처방',
+      memo: 'API 기준 처방에서 복사한 기준 Try입니다.',
+      ingredients: [
+        {
+          ingredientName: '비타민 C',
+          amount: '500',
+          unit: 'mg',
+          ratio: '40',
+          note: '산미',
+        },
+      ],
+    })
+    expect(
+      screen.getByRole('row', { name: 'API 기반 프로젝트 API 기준 처방 위 건강 1개' }),
     ).toBeInTheDocument()
   })
 

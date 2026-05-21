@@ -28,15 +28,42 @@ type ApiExperimentGroup = {
 type ApiProduct = {
   id: string
   name: string
-  formulas?: Array<{
-    id?: string | null
-  }>
+  formulas?: ApiProductFormula[]
+}
+
+type ApiProductFormula = {
+  id?: string | null
+  ingredients?: ApiProductFormulaIngredient[]
+}
+
+type ApiProductFormulaIngredient = {
+  amount?: string | number | null
+  unit?: string | null
+  ratio?: string | number | null
+  role?: string | null
+  ingredient?: {
+    name?: string | null
+  } | null
+}
+
+type ApiFormulaTry = {
+  id: string
+  tryNumber: number
+}
+
+type BaselineTryIngredientPayload = {
+  ingredientName: string
+  amount: string | number | null
+  unit: string | null
+  ratio: string | number | null
+  note: string | null
 }
 
 type ProductSourceOption = {
   id: string
   label: string
   formulaId?: string | null
+  formula?: ApiProductFormula | null
 }
 
 const seededProjects: ProjectDraft[] = [
@@ -153,6 +180,24 @@ export function ProjectsPage() {
         name: draftProject.groupName,
         purpose: null,
       })
+      const createdBaselineTry = selectedSource?.formulaId
+        ? await apiPost<
+            ApiFormulaTry,
+            {
+              tryNumber: number
+              status: 'DRAFT'
+              title: string
+              memo: string
+              ingredients: BaselineTryIngredientPayload[]
+            }
+          >(`/projects/groups/${createdGroup.id}/tries`, {
+            tryNumber: 1,
+            status: 'DRAFT',
+            title: '기준 처방',
+            memo: `${selectedSource.label}에서 복사한 기준 Try입니다.`,
+            ingredients: toBaselineTryIngredients(selectedSource.formula),
+          })
+        : null
 
       setProjects((current) => [
         {
@@ -160,7 +205,7 @@ export function ProjectsPage() {
           name: createdProject.name,
           source: sourceLabel(sourceOptions, createdProject.sourceProductId ?? sourceProductId),
           groupName: createdGroup.name.trim() || draftProject.groupName,
-          tryCount: createdGroup.tries?.length ?? 0,
+          tryCount: createdBaselineTry ? 1 : createdGroup.tries?.length ?? 0,
         },
         ...current,
       ])
@@ -262,9 +307,24 @@ function toSourceOptions(products: ApiProduct[]): ProductSourceOption[] {
       id: product.id,
       label: product.name,
       formulaId: product.formulas?.[0]?.id ?? null,
+      formula: product.formulas?.[0] ?? null,
     }))
 
   return [...productOptions, noSourceOption]
+}
+
+function toBaselineTryIngredients(
+  formula?: ApiProductFormula | null,
+): BaselineTryIngredientPayload[] {
+  return (formula?.ingredients ?? [])
+    .map((ingredient) => ({
+      ingredientName: ingredient.ingredient?.name?.trim() ?? '',
+      amount: ingredient.amount ?? null,
+      unit: ingredient.unit ?? null,
+      ratio: ingredient.ratio ?? null,
+      note: ingredient.role ?? null,
+    }))
+    .filter((ingredient) => ingredient.ingredientName.length > 0)
 }
 
 function selectInitialSourceId(
