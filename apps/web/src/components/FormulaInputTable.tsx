@@ -247,8 +247,8 @@ export function FormulaInputTable({ rows, onChange }: Props) {
     )
   }
 
-  function normalizeAmountsToMilligrams() {
-    if (!formulaSummary.canNormalizeToMilligrams) {
+  function normalizeAmountsToUnit(targetUnit: 'mg' | 'g') {
+    if (!canNormalizeAmountsToUnit(rows, targetUnit)) {
       return
     }
 
@@ -262,8 +262,8 @@ export function FormulaInputTable({ rows, onChange }: Props) {
 
         return {
           ...row,
-          amount: formatAmount(row.unit === 'g' ? amount * 1000 : amount),
-          unit: 'mg',
+          amount: formatAmount(convertAmount(amount, row.unit, targetUnit)),
+          unit: targetUnit,
         }
       }),
     )
@@ -518,9 +518,17 @@ export function FormulaInputTable({ rows, onChange }: Props) {
           type="button"
           className="summary-action-button"
           disabled={!formulaSummary.canNormalizeToMilligrams}
-          onClick={normalizeAmountsToMilligrams}
+          onClick={() => normalizeAmountsToUnit('mg')}
         >
           mg로 전체 통일
+        </button>
+        <button
+          type="button"
+          className="summary-action-button"
+          disabled={!formulaSummary.canNormalizeToGrams}
+          onClick={() => normalizeAmountsToUnit('g')}
+        >
+          g로 전체 통일
         </button>
         <button
           type="button"
@@ -624,7 +632,8 @@ function getFormulaSummary(rows: FormulaRow[]) {
     ratioLabel: `${formatSummaryNumber(totalRatio)}%`,
     isRatioOverLimit: totalRatio > 100,
     canCalculateRatio: ratioBasis !== null,
-    canNormalizeToMilligrams: canNormalizeAmountsToMilligrams(rows),
+    canNormalizeToMilligrams: canNormalizeAmountsToUnit(rows, 'mg'),
+    canNormalizeToGrams: canNormalizeAmountsToUnit(rows, 'g'),
     ratioCalculationHint: ratioBasis ? null : getRatioCalculationHint(rows),
   }
 }
@@ -680,7 +689,7 @@ function getRatioCalculationHint(rows: FormulaRow[]) {
   return null
 }
 
-function canNormalizeAmountsToMilligrams(rows: FormulaRow[]) {
+function canNormalizeAmountsToUnit(rows: FormulaRow[], targetUnit: 'mg' | 'g') {
   const amountRows = getAmountRows(rows)
 
   if (!amountRows.length) {
@@ -689,8 +698,16 @@ function canNormalizeAmountsToMilligrams(rows: FormulaRow[]) {
 
   return (
     amountRows.every((row) => convertibleUnits.has(row.unit)) &&
-    amountRows.some((row) => row.unit === 'g')
+    amountRows.some((row) => row.unit !== targetUnit)
   )
+}
+
+function convertAmount(amount: number, sourceUnit: string, targetUnit: 'mg' | 'g') {
+  if (sourceUnit === targetUnit) {
+    return amount
+  }
+
+  return targetUnit === 'mg' ? amount * 1000 : amount / 1000
 }
 
 function getAmountRows(rows: FormulaRow[]) {
