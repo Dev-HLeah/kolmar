@@ -15,6 +15,7 @@ describe('App shell', () => {
     expect(screen.getByRole('link', { name: '대시보드' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '제품/처방' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '프로젝트' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '근거 검색' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: '접근 역할' })).toHaveValue('researcher')
 
     await user.selectOptions(screen.getByRole('combobox', { name: '접근 역할' }), 'viewer')

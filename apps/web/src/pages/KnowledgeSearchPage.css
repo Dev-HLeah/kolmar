@@ -1,0 +1,127 @@
+.knowledge-search-form {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+}
+
+.knowledge-search-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.knowledge-search-form input {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.result-context,
+.empty-result {
+  margin: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.knowledge-result-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.knowledge-result-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.result-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.result-card-heading h3 {
+  color: var(--heading);
+  font-size: 16px;
+  line-height: 135%;
+}
+
+.result-card-heading span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.knowledge-result-card p {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 150%;
+}
+
+.knowledge-result-card dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.knowledge-result-card dl div {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.knowledge-result-card dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.knowledge-result-card dd {
+  color: var(--heading);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.knowledge-result-card a {
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .knowledge-search-form {
+    grid-template-columns: 1fr;
+  }
+
+  .result-card-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .result-card-heading span {
+    width: fit-content;
+  }
+}

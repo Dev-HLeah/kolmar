@@ -7,6 +7,7 @@ const navItems = [
   { to: '/', label: '대시보드', end: true },
   { to: '/products', label: '제품/처방' },
   { to: '/projects', label: '프로젝트' },
+  { to: '/knowledge', label: '근거 검색' },
 ]
 
 export function Layout() {
