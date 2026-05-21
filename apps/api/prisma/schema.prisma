@@ -256,6 +256,19 @@ model RawExternalRecord {
   @@index([sourceName, externalId])
 }
 
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  targetType String
+  targetId   String?
+  summary    String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([targetType, targetId])
+}
+
 /// Supabase SQL Editor setup:
 /// create extension if not exists vector;
 model VectorDocument {

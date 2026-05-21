@@ -2,19 +2,31 @@ import { ProductsService } from './products.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 describe('ProductsService', () => {
-  const prisma = {
+  const prisma: {
+    product: {
+      create: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+    };
+    auditLog: {
+      create: jest.Mock;
+    };
+  } = {
     product: {
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
     },
-  } as unknown as jest.Mocked<PrismaService>;
+    auditLog: {
+      create: jest.fn(),
+    },
+  };
 
   let service: ProductsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ProductsService(prisma);
+    service = new ProductsService(prisma as unknown as PrismaService);
   });
 
   it('creates a product with optional formula ingredient values', async () => {
@@ -71,6 +83,20 @@ describe('ProductsService', () => {
         include: expect.any(Object),
       }),
     );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'PRODUCT_CREATED',
+        targetType: 'Product',
+        targetId: 'product-1',
+        summary: '제품/처방 생성: 위 건강 정제',
+        metadata: {
+          productName: '위 건강 정제',
+          ingredientCount: 2,
+          dosageFormName: '츄어블 정제',
+          packagingName: 'Multi PTP',
+        },
+      },
+    });
   });
 
   it('recommends similar formulas using ingredient ratio overlap', async () => {

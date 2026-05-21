@@ -39,8 +39,8 @@ const projectInclude = {
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  createProject(dto: CreateProjectDto) {
-    return this.prisma.developmentProject.create({
+  async createProject(dto: CreateProjectDto) {
+    const project = await this.prisma.developmentProject.create({
       data: {
         name: dto.name,
         goal: cleanString(dto.goal),
@@ -54,6 +54,22 @@ export class ProjectsService {
       },
       include: projectInclude,
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'PROJECT_CREATED',
+        targetType: 'DevelopmentProject',
+        targetId: project.id,
+        summary: `프로젝트 생성: ${dto.name}`,
+        metadata: {
+          projectName: dto.name,
+          sourceProductId: cleanString(dto.sourceProductId) ?? null,
+          sourceFormulaId: cleanString(dto.sourceFormulaId) ?? null,
+        },
+      },
+    });
+
+    return project;
   }
 
   findProjects() {
@@ -78,8 +94,11 @@ export class ProjectsService {
     return project;
   }
 
-  createExperimentGroup(projectId: string, dto: CreateExperimentGroupDto) {
-    return this.prisma.experimentGroup.create({
+  async createExperimentGroup(
+    projectId: string,
+    dto: CreateExperimentGroupDto,
+  ) {
+    const group = await this.prisma.experimentGroup.create({
       data: {
         projectId,
         name: dto.name,
@@ -91,14 +110,29 @@ export class ProjectsService {
         },
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'EXPERIMENT_GROUP_CREATED',
+        targetType: 'ExperimentGroup',
+        targetId: group.id,
+        summary: `실험 그룹 생성: ${dto.name}`,
+        metadata: {
+          projectId,
+          groupName: dto.name,
+        },
+      },
+    });
+
+    return group;
   }
 
-  createFormulaTry(groupId: string, dto: CreateFormulaTryDto) {
+  async createFormulaTry(groupId: string, dto: CreateFormulaTryDto) {
     const ingredients = (dto.ingredients ?? [])
       .map((ingredient) => this.toTryIngredientCreateInput(ingredient))
       .filter((ingredient) => ingredient !== undefined);
 
-    return this.prisma.formulaTry.create({
+    const formulaTry = await this.prisma.formulaTry.create({
       data: {
         groupId,
         tryNumber: dto.tryNumber,
@@ -117,10 +151,26 @@ export class ProjectsService {
       },
       include: formulaTryInclude,
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'FORMULA_TRY_CREATED',
+        targetType: 'FormulaTry',
+        targetId: formulaTry.id,
+        summary: `try 생성: try#${dto.tryNumber}`,
+        metadata: {
+          groupId,
+          tryNumber: dto.tryNumber,
+          title: cleanString(dto.title) ?? null,
+        },
+      },
+    });
+
+    return formulaTry;
   }
 
-  createTryTestResult(tryId: string, dto: CreateTestResultDto) {
-    return this.prisma.tryTestResult.create({
+  async createTryTestResult(tryId: string, dto: CreateTestResultDto) {
+    const testResult = await this.prisma.tryTestResult.create({
       data: {
         tryId,
         testPurpose: cleanString(dto.testPurpose),
@@ -131,25 +181,72 @@ export class ProjectsService {
         memo: cleanString(dto.memo),
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'TRY_TEST_RESULT_CREATED',
+        targetType: 'TryTestResult',
+        targetId: testResult.id,
+        summary: `테스트 결과 등록: ${tryId}`,
+        metadata: {
+          tryId,
+          measuredItem: cleanString(dto.measuredItem) ?? null,
+          judgment: cleanString(dto.judgment) ?? null,
+        },
+      },
+    });
+
+    return testResult;
   }
 
-  createTryMark(tryId: string, dto: CreateTryMarkDto) {
-    return this.prisma.tryMark.create({
+  async createTryMark(tryId: string, dto: CreateTryMarkDto) {
+    const mark = await this.prisma.tryMark.create({
       data: {
         tryId,
         type: dto.type,
         reason: cleanString(dto.reason),
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'TRY_MARK_CREATED',
+        targetType: 'TryMark',
+        targetId: mark.id,
+        summary: `try 마킹: ${dto.type}`,
+        metadata: {
+          tryId,
+          type: dto.type,
+          reason: cleanString(dto.reason) ?? null,
+        },
+      },
+    });
+
+    return mark;
   }
 
-  deleteFormulaTry(tryId: string) {
-    return this.prisma.formulaTry.delete({
+  async deleteFormulaTry(tryId: string) {
+    const deletedTry = await this.prisma.formulaTry.delete({
       where: {
         id: tryId,
       },
       include: formulaTryInclude,
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'FORMULA_TRY_DELETED',
+        targetType: 'FormulaTry',
+        targetId: deletedTry.id,
+        summary: `try 삭제: try#${deletedTry.tryNumber}`,
+        metadata: {
+          groupId: deletedTry.groupId,
+          tryNumber: deletedTry.tryNumber,
+        },
+      },
+    });
+
+    return deletedTry;
   }
 
   findMarkedTriesByProject(projectId: string) {

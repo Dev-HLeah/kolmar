@@ -3,7 +3,31 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TryMarkType } from '@prisma/client';
 
 describe('ProjectsService', () => {
-  const prisma = {
+  const prisma: {
+    developmentProject: {
+      create: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+    };
+    experimentGroup: {
+      create: jest.Mock;
+    };
+    formulaTry: {
+      create: jest.Mock;
+      delete: jest.Mock;
+      findMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
+    tryTestResult: {
+      create: jest.Mock;
+    };
+    tryMark: {
+      create: jest.Mock;
+    };
+    auditLog: {
+      create: jest.Mock;
+    };
+  } = {
     developmentProject: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -24,13 +48,16 @@ describe('ProjectsService', () => {
     tryMark: {
       create: jest.fn(),
     },
-  } as unknown as jest.Mocked<PrismaService>;
+    auditLog: {
+      create: jest.fn(),
+    },
+  };
 
   let service: ProjectsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ProjectsService(prisma);
+    service = new ProjectsService(prisma as unknown as PrismaService);
   });
 
   it('creates a project that can start from an existing product formula', async () => {
@@ -56,6 +83,19 @@ describe('ProjectsService', () => {
         include: expect.any(Object),
       }),
     );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'PROJECT_CREATED',
+        targetType: 'DevelopmentProject',
+        targetId: 'project-1',
+        summary: '프로젝트 생성: 신물 억제 정제',
+        metadata: {
+          projectName: '신물 억제 정제',
+          sourceProductId: 'product-1',
+          sourceFormulaId: 'formula-1',
+        },
+      },
+    });
   });
 
   it('creates a formula try with only group id and try number required', async () => {
@@ -77,6 +117,46 @@ describe('ProjectsService', () => {
         include: expect.any(Object),
       }),
     );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'FORMULA_TRY_CREATED',
+        targetType: 'FormulaTry',
+        targetId: 'try-1',
+        summary: 'try 생성: try#1',
+        metadata: {
+          groupId: 'group-1',
+          tryNumber: 1,
+          title: null,
+        },
+      },
+    });
+  });
+
+  it('creates an experiment group audit log', async () => {
+    const createdGroup = {
+      id: 'group-1',
+      projectId: 'project-1',
+      name: '신물 억제',
+    };
+    prisma.experimentGroup.create.mockResolvedValue(createdGroup);
+
+    const result = await service.createExperimentGroup('project-1', {
+      name: '신물 억제',
+    });
+
+    expect(result).toBe(createdGroup);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'EXPERIMENT_GROUP_CREATED',
+        targetType: 'ExperimentGroup',
+        targetId: 'group-1',
+        summary: '실험 그룹 생성: 신물 억제',
+        metadata: {
+          projectId: 'project-1',
+          groupName: '신물 억제',
+        },
+      },
+    });
   });
 
   it('deletes one formula try when the user removes it from a group', async () => {
@@ -91,6 +171,18 @@ describe('ProjectsService', () => {
         id: 'try-1',
       },
       include: expect.any(Object),
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'FORMULA_TRY_DELETED',
+        targetType: 'FormulaTry',
+        targetId: 'try-1',
+        summary: 'try 삭제: try#1',
+        metadata: {
+          groupId: 'group-1',
+          tryNumber: 1,
+        },
+      },
     });
   });
 
@@ -112,6 +204,19 @@ describe('ProjectsService', () => {
         memo: undefined,
       },
     });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'TRY_TEST_RESULT_CREATED',
+        targetType: 'TryTestResult',
+        targetId: 'result-1',
+        summary: '테스트 결과 등록: try-1',
+        metadata: {
+          tryId: 'try-1',
+          measuredItem: null,
+          judgment: null,
+        },
+      },
+    });
   });
 
   it('marks meaningful tries and can query marked tries by project', async () => {
@@ -131,6 +236,19 @@ describe('ProjectsService', () => {
         tryId: 'try-1',
         type: TryMarkType.PROMISING,
         reason: '맛과 안정성 기준 통과',
+      },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'TRY_MARK_CREATED',
+        targetType: 'TryMark',
+        targetId: 'mark-1',
+        summary: 'try 마킹: PROMISING',
+        metadata: {
+          tryId: 'try-1',
+          type: TryMarkType.PROMISING,
+          reason: '맛과 안정성 기준 통과',
+        },
       },
     });
     expect(markedTries).toEqual([]);

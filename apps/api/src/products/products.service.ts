@@ -72,7 +72,7 @@ export class ProductsService {
       .map((ingredient) => this.toFormulaIngredientCreateInput(ingredient))
       .filter((ingredient) => ingredient !== undefined);
 
-    return this.prisma.product.create({
+    const product = await this.prisma.product.create({
       data: {
         name: dto.name,
         category: cleanString(dto.category),
@@ -96,6 +96,23 @@ export class ProductsService {
       },
       include: productInclude,
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'PRODUCT_CREATED',
+        targetType: 'Product',
+        targetId: product.id,
+        summary: `제품/처방 생성: ${dto.name}`,
+        metadata: {
+          productName: dto.name,
+          ingredientCount: ingredients.length,
+          dosageFormName: cleanString(dto.dosageFormName) ?? null,
+          packagingName: cleanString(dto.packagingName) ?? null,
+        },
+      },
+    });
+
+    return product;
   }
 
   findProducts() {
