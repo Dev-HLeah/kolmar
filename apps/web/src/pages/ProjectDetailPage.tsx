@@ -9,6 +9,7 @@ type TryRow = {
   id: number
   apiId?: string
   title: string
+  status: TryStatus
   dosageForm: string
   manufacturingProcess: string
   memo: string
@@ -16,6 +17,16 @@ type TryRow = {
   testResults: TryTestResultRow[]
   marked: boolean
 }
+
+type TryStatus =
+  | 'DRAFT'
+  | 'PLANNED'
+  | 'IN_PROGRESS'
+  | 'TESTED'
+  | 'CANDIDATE'
+  | 'FINAL_CANDIDATE'
+  | 'DISCARDED'
+  | 'ON_HOLD'
 
 type TryTestResultRow = {
   id: string
@@ -38,6 +49,7 @@ type ExperimentGroupRow = {
 type ApiFormulaTry = {
   id: string
   tryNumber: number
+  status?: TryStatus | null
   title?: string | null
   dosageForm?: string | null
   manufacturingProcess?: string | null
@@ -94,12 +106,30 @@ const sampleGroupId = 'sample-group'
 const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
 const fallbackNotice = 'API 연결 실패로 샘플 프로젝트를 표시합니다.'
 const emptyFormulaRow: FormulaRow = { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' }
+const tryStatusOptions: { value: TryStatus; label: string }[] = [
+  { value: 'DRAFT', label: '초안' },
+  { value: 'PLANNED', label: '테스트 예정' },
+  { value: 'IN_PROGRESS', label: '테스트 중' },
+  { value: 'TESTED', label: '테스트 완료' },
+  { value: 'CANDIDATE', label: '후보' },
+  { value: 'FINAL_CANDIDATE', label: '최종 후보' },
+  { value: 'DISCARDED', label: '폐기' },
+  { value: 'ON_HOLD', label: '보류' },
+]
+const tryStatusLabels = tryStatusOptions.reduce<Record<TryStatus, string>>(
+  (labels, option) => ({
+    ...labels,
+    [option.value]: option.label,
+  }),
+  {} as Record<TryStatus, string>,
+)
 
 const initialTries: TryRow[] = [
   {
     id: 1,
     apiId: 'sample-try-1',
     title: '기준 처방',
+    status: 'DRAFT',
     dosageForm: '정제',
     manufacturingProcess: '',
     memo: '',
@@ -111,6 +141,7 @@ const initialTries: TryRow[] = [
     id: 2,
     apiId: 'sample-try-2',
     title: '신물 억제 후보',
+    status: 'DRAFT',
     dosageForm: '',
     manufacturingProcess: '',
     memo: '',
@@ -122,6 +153,7 @@ const initialTries: TryRow[] = [
     id: 3,
     apiId: 'sample-try-3',
     title: '맛 개선 후보',
+    status: 'DRAFT',
     dosageForm: '',
     manufacturingProcess: '',
     memo: '',
@@ -133,6 +165,7 @@ const initialTries: TryRow[] = [
     id: 4,
     apiId: 'sample-try-4',
     title: '정제 안정성 후보',
+    status: 'DRAFT',
     dosageForm: '',
     manufacturingProcess: '',
     memo: '',
@@ -144,6 +177,7 @@ const initialTries: TryRow[] = [
     id: 5,
     apiId: 'sample-try-5',
     title: '제조 공정 후보',
+    status: 'DRAFT',
     dosageForm: '',
     manufacturingProcess: '',
     memo: '',
@@ -155,6 +189,7 @@ const initialTries: TryRow[] = [
     id: 6,
     apiId: 'sample-try-6',
     title: '포장 적합성 후보',
+    status: 'DRAFT',
     dosageForm: '',
     manufacturingProcess: '',
     memo: '',
@@ -183,11 +218,13 @@ export function ProjectDetailPage() {
   const [groups, setGroups] = useState<ExperimentGroupRow[]>(initialGroups)
   const [activeGroupId, setActiveGroupId] = useState(sampleGroupId)
   const [tryFilter, setTryFilter] = useState<'all' | 'marked'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | TryStatus>('all')
   const [groupTitle, setGroupTitle] = useState('')
   const [groupPurpose, setGroupPurpose] = useState('')
   const [tryTitle, setTryTitle] = useState('')
   const [editTryNumber, setEditTryNumber] = useState('1')
   const [editTitle, setEditTitle] = useState(initialTries[0].title)
+  const [editStatus, setEditStatus] = useState<TryStatus>(initialTries[0].status)
   const [editDosageForm, setEditDosageForm] = useState(initialTries[0].dosageForm)
   const [editManufacturingProcess, setEditManufacturingProcess] = useState(
     initialTries[0].manufacturingProcess,
@@ -216,8 +253,14 @@ export function ProjectDetailPage() {
     [groups],
   )
   const visibleTries = useMemo(
-    () => (tryFilter === 'marked' ? tries.filter((item) => item.marked) : tries),
-    [tries, tryFilter],
+    () =>
+      tries.filter((item) => {
+        const matchesStatus = statusFilter === 'all' || item.status === statusFilter
+        const matchesMark = tryFilter === 'all' || item.marked
+
+        return matchesStatus && matchesMark
+      }),
+    [statusFilter, tries, tryFilter],
   )
   const selectedEditTry = useMemo(
     () => tries.find((item) => String(item.id) === editTryNumber) ?? tries[0],
@@ -248,6 +291,7 @@ export function ProjectDetailPage() {
   const syncEditForm = useCallback((targetTry?: TryRow) => {
     if (!targetTry) {
       setEditTitle('')
+      setEditStatus('DRAFT')
       setEditDosageForm('')
       setEditManufacturingProcess('')
       setEditMemo('')
@@ -256,6 +300,7 @@ export function ProjectDetailPage() {
     }
 
     setEditTitle(targetTry.title)
+    setEditStatus(targetTry.status)
     setEditDosageForm(targetTry.dosageForm)
     setEditManufacturingProcess(targetTry.manufacturingProcess)
     setEditMemo(targetTry.memo)
@@ -288,6 +333,7 @@ export function ProjectDetailPage() {
         setActiveGroupId(nextActiveGroup.id)
         setEditTryNumber(nextActiveGroup.tries[0] ? String(nextActiveGroup.tries[0].id) : '')
         setResultTryNumber('')
+        setStatusFilter('all')
         syncEditForm(nextActiveGroup.tries[0])
         setNotice('')
       } catch {
@@ -301,6 +347,7 @@ export function ProjectDetailPage() {
         setActiveGroupId(sampleGroupId)
         setEditTryNumber(String(initialTries[0].id))
         setResultTryNumber('')
+        setStatusFilter('all')
         syncEditForm(initialTries[0])
         setNotice(fallbackNotice)
       }
@@ -324,6 +371,7 @@ export function ProjectDetailPage() {
   function selectGroup(group: ExperimentGroupRow) {
     setActiveGroupId(group.id)
     setTryFilter('all')
+    setStatusFilter('all')
     setEditTryNumber(group.tries[0] ? String(group.tries[0].id) : '')
     setResultTryNumber('')
     syncEditForm(group.tries[0])
@@ -440,6 +488,7 @@ export function ProjectDetailPage() {
           id: createdTry.tryNumber,
           apiId: createdTry.id,
           title: createdTry.title?.trim() || title,
+          status: createdTry.status ?? 'DRAFT',
           dosageForm: createdTry.dosageForm?.trim() || '',
           manufacturingProcess: createdTry.manufacturingProcess?.trim() || '',
           memo: createdTry.memo?.trim() || '',
@@ -455,6 +504,7 @@ export function ProjectDetailPage() {
         {
           id: nextId,
           title,
+          status: 'DRAFT',
           dosageForm: '',
           manufacturingProcess: '',
           memo: '',
@@ -565,6 +615,7 @@ export function ProjectDetailPage() {
     }
 
     const payload = {
+      status: editStatus,
       title: nullableText(editTitle),
       dosageForm: nullableText(editDosageForm),
       manufacturingProcess: nullableText(editManufacturingProcess),
@@ -575,6 +626,7 @@ export function ProjectDetailPage() {
     const localUpdatedTry: TryRow = {
       ...selectedEditTry,
       title: editTitle.trim() || `try#${selectedEditTry.id}`,
+      status: editStatus,
       dosageForm: editDosageForm.trim(),
       manufacturingProcess: editManufacturingProcess.trim(),
       memo: editMemo.trim(),
@@ -679,6 +731,20 @@ export function ProjectDetailPage() {
             의미 있는 Try만 보기
           </button>
         </div>
+        <label className="status-filter">
+          Try 상태 필터
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as 'all' | TryStatus)}
+          >
+            <option value="all">전체 상태</option>
+            {tryStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="try-add-form">
           <label>
             Try 목적
@@ -800,6 +866,19 @@ export function ProjectDetailPage() {
               <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
             </label>
             <label>
+              Try 상태
+              <select
+                value={editStatus}
+                onChange={(event) => setEditStatus(event.target.value as TryStatus)}
+              >
+                {tryStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               제형
               <input
                 value={editDosageForm}
@@ -832,6 +911,7 @@ export function ProjectDetailPage() {
               <tr>
                 <th>Try</th>
                 <th>목적</th>
+                <th>상태</th>
                 <th>마킹</th>
                 <th>작업</th>
               </tr>
@@ -841,6 +921,7 @@ export function ProjectDetailPage() {
                 <tr key={item.id}>
                   <td>try#{item.id}</td>
                   <td>{item.title}</td>
+                  <td>{tryStatusLabels[item.status]}</td>
                   <td>{item.marked ? '마킹됨' : '일반'}</td>
                   <td>
                     <div className="row-actions">
@@ -864,7 +945,7 @@ export function ProjectDetailPage() {
               ))}
               {visibleTries.length === 0 ? (
                 <tr>
-                  <td colSpan={4}>마킹된 Try 없음</td>
+                  <td colSpan={5}>마킹된 Try 없음</td>
                 </tr>
               ) : null}
             </tbody>
@@ -909,6 +990,7 @@ function toTryRows(tries: ApiFormulaTry[]): TryRow[] {
       id: item.tryNumber,
       apiId: item.id,
       title: item.title?.trim() || `try#${item.tryNumber}`,
+      status: item.status ?? 'DRAFT',
       dosageForm: item.dosageForm?.trim() || '',
       manufacturingProcess: item.manufacturingProcess?.trim() || '',
       memo: item.memo?.trim() || '',

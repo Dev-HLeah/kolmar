@@ -42,6 +42,7 @@ function mockProjectDetail() {
           {
             id: 'api-try-1',
             tryNumber: 1,
+            status: 'PLANNED',
             title: '기준 처방',
             dosageForm: '정제',
             manufacturingProcess: '직타',
@@ -74,6 +75,7 @@ function mockProjectDetail() {
           {
             id: 'api-try-2',
             tryNumber: 2,
+            status: 'CANDIDATE',
             title: 'API 후보',
             testResults: [],
             marks: [{ id: 'mark-1' }],
@@ -88,6 +90,7 @@ function mockProjectDetail() {
           {
             id: 'api-try-10',
             tryNumber: 10,
+            status: 'TESTED',
             title: '감미료 조정',
             dosageForm: '정제',
             manufacturingProcess: '직타',
@@ -120,7 +123,7 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('API 신물 억제 그룹')).toBeInTheDocument()
     expect(screen.getByText('의미 있는 Try 1건')).toBeInTheDocument()
     expect(
-      screen.getByRole('row', { name: 'try#2 API 후보 마킹됨 try#2 마킹 try#2 삭제' }),
+      screen.getByRole('row', { name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제' }),
     ).toBeInTheDocument()
   })
 
@@ -134,16 +137,40 @@ describe('ProjectDetailPage', () => {
     await user.click(screen.getByRole('button', { name: '의미 있는 Try만 보기' }))
 
     expect(
-      screen.getByRole('row', { name: 'try#2 API 후보 마킹됨 try#2 마킹 try#2 삭제' }),
+      screen.getByRole('row', { name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제' }),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('row', { name: 'try#1 기준 처방 일반 try#1 마킹 try#1 삭제' }))
-      .not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('row', {
+        name: 'try#1 기준 처방 테스트 예정 일반 try#1 마킹 try#1 삭제',
+      }),
+    ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '전체 Try 보기' }))
 
     expect(
-      screen.getByRole('row', { name: 'try#1 기준 처방 일반 try#1 마킹 try#1 삭제' }),
+      screen.getByRole('row', {
+        name: 'try#1 기준 처방 테스트 예정 일반 try#1 마킹 try#1 삭제',
+      }),
     ).toBeInTheDocument()
+  })
+
+  it('filters tries by workflow status', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+    await user.selectOptions(screen.getByLabelText('Try 상태 필터'), 'CANDIDATE')
+
+    expect(
+      screen.getByRole('row', { name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('row', {
+        name: 'try#1 기준 처방 테스트 예정 일반 try#1 마킹 try#1 삭제',
+      }),
+    ).not.toBeInTheDocument()
   })
 
   it('switches between experiment groups and shows group-specific tries', async () => {
@@ -157,10 +184,15 @@ describe('ProjectDetailPage', () => {
 
     expect(screen.getByText('try#1-10')).toBeInTheDocument()
     expect(
-      screen.getByRole('row', { name: 'try#10 감미료 조정 일반 try#10 마킹 try#10 삭제' }),
+      screen.getByRole('row', {
+        name: 'try#10 감미료 조정 테스트 완료 일반 try#10 마킹 try#10 삭제',
+      }),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('row', { name: 'try#1 기준 처방 일반 try#1 마킹 try#1 삭제' }))
-      .not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('row', {
+        name: 'try#1 기준 처방 테스트 예정 일반 try#1 마킹 try#1 삭제',
+      }),
+    ).not.toBeInTheDocument()
     expect(screen.getByLabelText('결과 등록 Try')).toHaveValue('10')
   })
 
@@ -214,7 +246,9 @@ describe('ProjectDetailPage', () => {
     })
     expect(screen.getByText('의미 있는 Try 2건')).toBeInTheDocument()
     expect(
-      screen.getByRole('row', { name: 'try#1 기준 처방 마킹됨 try#1 마킹 try#1 삭제' }),
+      screen.getByRole('row', {
+        name: 'try#1 기준 처방 테스트 예정 마킹됨 try#1 마킹 try#1 삭제',
+      }),
     ).toBeInTheDocument()
   })
 
@@ -251,7 +285,7 @@ describe('ProjectDetailPage', () => {
 
     expect(
       screen.getByRole('row', {
-        name: 'try#3 붕해 시간 개선 후보 일반 try#3 마킹 try#3 삭제',
+        name: 'try#3 붕해 시간 개선 후보 초안 일반 try#3 마킹 try#3 삭제',
       }),
     ).toBeInTheDocument()
     expect(screen.getByText('try#1-3')).toBeInTheDocument()
@@ -330,6 +364,7 @@ describe('ProjectDetailPage', () => {
     apiPatchMock.mockResolvedValueOnce({
       id: 'api-try-1',
       tryNumber: 1,
+      status: 'CANDIDATE',
       title: '기준 처방 개선',
       dosageForm: '츄어블 정제',
       manufacturingProcess: '직타',
@@ -361,9 +396,11 @@ describe('ProjectDetailPage', () => {
     await user.type(screen.getByLabelText('제형'), '츄어블 정제')
     await user.clear(screen.getByLabelText('Try 메모'))
     await user.type(screen.getByLabelText('Try 메모'), '쓴맛 보완')
+    await user.selectOptions(screen.getByLabelText('Try 상태'), 'CANDIDATE')
     await user.click(screen.getByRole('button', { name: 'Try 배합 저장' }))
 
     expect(apiPatchMock).toHaveBeenCalledWith('/projects/tries/api-try-1', {
+      status: 'CANDIDATE',
       title: '기준 처방 개선',
       dosageForm: '츄어블 정제',
       manufacturingProcess: '직타',
@@ -380,7 +417,9 @@ describe('ProjectDetailPage', () => {
     })
     expect(screen.getByText('Try 배합 정보가 저장됐습니다.')).toBeInTheDocument()
     expect(
-      screen.getByRole('row', { name: 'try#1 기준 처방 개선 일반 try#1 마킹 try#1 삭제' }),
+      screen.getByRole('row', {
+        name: 'try#1 기준 처방 개선 후보 일반 try#1 마킹 try#1 삭제',
+      }),
     ).toBeInTheDocument()
   })
 
