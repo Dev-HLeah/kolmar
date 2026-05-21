@@ -26,33 +26,39 @@ describe('ProductDetailPage', () => {
   })
 
   it('loads registered product formula details from the API', async () => {
-    apiGetMock.mockResolvedValueOnce({
-      id: 'product-api-1',
-      name: 'API 제품 처방',
-      function: '위 건강',
-      dosageForm: { name: '이중 제형 정제' },
-      packaging: { name: 'Multi PTP' },
-      formulas: [
-        {
-          version: 'v1',
-          ingredients: [
-            {
-              amount: '500',
-              unit: 'mg',
-              ratio: '40',
-              role: '산미',
-              ingredient: { name: '비타민 C' },
-            },
-            {
-              amount: null,
-              unit: 'mg',
-              ratio: null,
-              role: '선택값',
-              ingredient: { name: '아연' },
-            },
-          ],
-        },
-      ],
+    apiGetMock.mockImplementation(async (path) => {
+      if (path === '/products/product-api-1/similar-formulas') {
+        return []
+      }
+
+      return {
+        id: 'product-api-1',
+        name: 'API 제품 처방',
+        function: '위 건강',
+        dosageForm: { name: '이중 제형 정제' },
+        packaging: { name: 'Multi PTP' },
+        formulas: [
+          {
+            version: 'v1',
+            ingredients: [
+              {
+                amount: '500',
+                unit: 'mg',
+                ratio: '40',
+                role: '산미',
+                ingredient: { name: '비타민 C' },
+              },
+              {
+                amount: null,
+                unit: 'mg',
+                ratio: null,
+                role: '선택값',
+                ingredient: { name: '아연' },
+              },
+            ],
+          },
+        ],
+      }
     })
 
     renderProductDetail()
@@ -75,5 +81,59 @@ describe('ProductDetailPage', () => {
     expect(await screen.findByRole('heading', { name: '콜마 고형제 기준 처방' })).toBeInTheDocument()
     expect(screen.getByText('API 연결 실패로 샘플 기준 처방을 표시합니다.')).toBeInTheDocument()
     expect(screen.getByLabelText('원료명 1')).toHaveValue('비타민 C')
+  })
+
+  it('loads similar formula recommendations from the product formula profile', async () => {
+    apiGetMock.mockImplementation(async (path) => {
+      if (path === '/products/product-api-1/similar-formulas') {
+        return [
+          {
+            productId: 'product-api-2',
+            productName: '유사 제품 처방',
+            formulaId: 'formula-2',
+            formulaVersion: 'v1',
+            similarityScore: 98,
+            matchedIngredientCount: 2,
+            reason: '공통 원료 2개, 평균 비율 차이 2.0',
+            matchedIngredients: [
+              {
+                ingredientName: '비타민 C',
+                targetRatio: 40,
+                candidateRatio: 38,
+                ratioDifference: 2,
+              },
+            ],
+          },
+        ]
+      }
+
+      return {
+        id: 'product-api-1',
+        name: 'API 제품 처방',
+        function: '위 건강',
+        dosageForm: { name: '이중 제형 정제' },
+        packaging: { name: 'Multi PTP' },
+        formulas: [
+          {
+            ingredients: [
+              {
+                ratio: '40',
+                unit: 'mg',
+                ingredient: { name: '비타민 C' },
+              },
+            ],
+          },
+        ],
+      }
+    })
+
+    renderProductDetail()
+
+    expect(await screen.findByRole('heading', { name: '유사 배합 추천' })).toBeInTheDocument()
+    expect(apiGetMock).toHaveBeenCalledWith('/products/product-api-1/similar-formulas')
+    expect(screen.getByRole('heading', { name: '유사 제품 처방' })).toBeInTheDocument()
+    expect(screen.getByText('유사도 98%')).toBeInTheDocument()
+    expect(screen.getByText('공통 원료 2개, 평균 비율 차이 2.0')).toBeInTheDocument()
+    expect(screen.getByText('비타민 C 40% → 38%')).toBeInTheDocument()
   })
 })

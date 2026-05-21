@@ -30,6 +30,30 @@ const kolmarDosageForms = new Set([
 
 const kolmarPackagingOptions = new Set(['스틱 포장', 'Multi PTP']);
 
+type FormulaIngredientForSimilarity = {
+  ratio?: unknown;
+  ingredient?: {
+    name?: string | null;
+  } | null;
+};
+
+type FormulaForSimilarity = {
+  id?: string;
+  version?: string;
+  ingredients?: FormulaIngredientForSimilarity[];
+};
+
+type ProductForSimilarity = {
+  id: string;
+  name: string;
+  formulas?: FormulaForSimilarity[];
+};
+
+type FormulaProfileItem = {
+  ingredientName: string;
+  ratio: number;
+};
+
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -85,6 +109,26 @@ export class ProductsService {
     }
 
     return product;
+  }
+
+  async findSimilarFormulas(id: string) {
+    const targetProduct = (await this.findProductById(
+      id,
+    )) as unknown as ProductForSimilarity;
+    const candidateProducts = (await this.prisma.product.findMany({
+      where: {
+        id: {
+          not: id,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: productInclude,
+      take: 20,
+    })) as unknown as ProductForSimilarity[];
+
+    return toSimilarFormulaRecommendations(targetProduct, candidateProducts);
   }
 
   private toFormulaIngredientCreateInput(
@@ -159,4 +203,134 @@ function cleanDecimal(value?: number | string | null) {
 
   const normalized = String(value).trim();
   return normalized ? normalized : undefined;
+}
+
+function toSimilarFormulaRecommendations(
+  targetProduct: ProductForSimilarity,
+  candidateProducts: ProductForSimilarity[],
+) {
+  const targetFormula = targetProduct.formulas?.[0];
+  const targetProfile = toFormulaProfile(targetFormula);
+
+  if (targetProfile.length === 0) {
+    return [];
+  }
+
+  const targetRatioByIngredient = new Map(
+    targetProfile.map((item) => [item.ingredientName, item.ratio]),
+  );
+
+  return candidateProducts
+    .map((candidateProduct) => {
+      const candidateFormula = candidateProduct.formulas?.[0];
+      const candidateProfile = toFormulaProfile(candidateFormula);
+      const matchedIngredients = candidateProfile
+        .filter((item) => targetRatioByIngredient.has(item.ingredientName))
+        .map((item) => {
+          const targetRatio = targetRatioByIngredient.get(
+            item.ingredientName,
+          ) as number;
+
+          return {
+            ingredientName: item.ingredientName,
+            targetRatio,
+            candidateRatio: item.ratio,
+            ratioDifference: roundOne(Math.abs(targetRatio - item.ratio)),
+          };
+        });
+
+      if (matchedIngredients.length === 0 || !candidateFormula?.id) {
+        return undefined;
+      }
+
+      const averageRatioDifference = roundOne(
+        matchedIngredients.reduce(
+          (total, ingredient) => total + ingredient.ratioDifference,
+          0,
+        ) / matchedIngredients.length,
+      );
+      const coverageScore =
+        (matchedIngredients.length / targetProfile.length) * 100;
+      const similarityScore = Math.max(
+        0,
+        Math.round(coverageScore - averageRatioDifference),
+      );
+
+      if (similarityScore === 0) {
+        return undefined;
+      }
+
+      return {
+        productId: candidateProduct.id,
+        productName: candidateProduct.name,
+        formulaId: candidateFormula.id,
+        formulaVersion: candidateFormula.version ?? 'v1',
+        similarityScore,
+        matchedIngredientCount: matchedIngredients.length,
+        reason: `공통 원료 ${matchedIngredients.length}개, 평균 비율 차이 ${averageRatioDifference.toFixed(
+          1,
+        )}`,
+        matchedIngredients,
+      };
+    })
+    .filter((recommendation) => recommendation !== undefined)
+    .sort((left, right) => right.similarityScore - left.similarityScore)
+    .slice(0, 5);
+}
+
+function toFormulaProfile(
+  formula?: FormulaForSimilarity,
+): FormulaProfileItem[] {
+  return (formula?.ingredients ?? [])
+    .map((ingredient) => {
+      const ingredientName = ingredient.ingredient?.name?.trim();
+      const ratio = toNumber(ingredient.ratio);
+
+      if (!ingredientName || ratio === undefined) {
+        return undefined;
+      }
+
+      return {
+        ingredientName,
+        ratio,
+      };
+    })
+    .filter((item) => item !== undefined);
+}
+
+function toNumber(value: unknown) {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === 'string') {
+    const parsedValue = Number(value);
+    return Number.isFinite(parsedValue) ? parsedValue : undefined;
+  }
+
+  if (hasDecimalToNumber(value)) {
+    const parsedValue = value.toNumber();
+    return Number.isFinite(parsedValue) ? parsedValue : undefined;
+  }
+
+  return undefined;
+}
+
+function hasDecimalToNumber(
+  value: unknown,
+): value is { toNumber: () => number } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'toNumber' in value &&
+    typeof value.toNumber === 'function'
+  );
+}
+
+function roundOne(value: number) {
+  return Math.round(value * 10) / 10;
 }

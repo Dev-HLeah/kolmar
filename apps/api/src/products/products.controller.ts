@@ -19,6 +19,11 @@ export class ProductsController {
     return this.productsService.findProducts();
   }
 
+  @Get(':id/similar-formulas')
+  findSimilarFormulas(@Param('id') id: string) {
+    return this.productsService.findSimilarFormulas(id);
+  }
+
   @Get(':id')
   findProductById(@Param('id') id: string) {
     return this.productsService.findProductById(id);
