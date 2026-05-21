@@ -10,10 +10,10 @@ React + NestJS + Prisma + Supabase 기반 건강기능식품 AI 배합 설계 Po
 ## Local Setup
 
 ```bash
-npm install
+pnpm install
 cp .env.dev.example .env.dev
-npm run dev:api:dev
-npm run dev:web:dev
+pnpm run dev:api:dev
+pnpm run dev:web:dev
 ```
 
 초기 개발은 `AI_PROVIDER=mock`으로 실행할 수 있습니다. Supabase 연결 전에도 schema validate, API 테스트, 웹 화면 검증은 가능합니다.
@@ -60,7 +60,7 @@ Frontend:
 Prisma schema는 `apps/api/prisma/schema.prisma`에 있습니다.
 
 ```bash
-npm --workspace apps/api run prisma:validate
+pnpm --filter api run prisma:validate
 ```
 
 Supabase에서 vector 검색을 사용하려면 SQL Editor에서 아래 확장을 먼저 활성화합니다.
@@ -72,29 +72,31 @@ create extension if not exists vector;
 실제 migration은 Supabase `DATABASE_URL`, `DIRECT_URL` 입력 후 실행합니다.
 
 ```bash
-APP_ENV=dev npm --workspace apps/api run prisma:generate
-APP_ENV=dev npm --workspace apps/api run prisma:migrate
+APP_ENV=dev pnpm --filter api run prisma:generate
+APP_ENV=dev pnpm --filter api run prisma:migrate
+pnpm run seed:dev
 ```
 
 운영 DB에 migration을 적용해야 하는 경우에는 먼저 `.env.prd` 값을 확인한 뒤 명시적으로 실행합니다.
 
 ```bash
-APP_ENV=prd npm --workspace apps/api run prisma:migrate
+APP_ENV=prd pnpm --filter api run prisma:migrate
 ```
 
 ## Development Commands
 
 ```bash
-npm run dev:api:dev
-npm run dev:web:dev
-npm run build:api
-npm run build:web
-npm run build:web:prd
-npm run test:api
-npm run test:api:e2e
-npm --workspace apps/api run lint
-npm --workspace apps/web run lint
-npm --workspace apps/web test -- --run
+pnpm run dev:api:dev
+pnpm run dev:web:dev
+pnpm run build:api
+pnpm run build:web
+pnpm run build:web:prd
+pnpm run test:api
+pnpm run test:api:e2e
+pnpm run test:web
+pnpm run lint:api
+pnpm run lint:web
+pnpm run seed:dev
 ```
 
 ## Deployment
@@ -102,7 +104,7 @@ npm --workspace apps/web test -- --run
 Vercel frontend:
 
 - Root directory: `apps/web`
-- Build command: `npm run build`
+- Build command: `pnpm run build`
 - Output directory: `dist`
 - Config file: `apps/web/vercel.json`
 
@@ -110,7 +112,7 @@ Railway backend:
 
 - Root directory: `apps/api`
 - Build: Nixpacks default
-- Start command: `npm run start:prod`
+- Start command: `pnpm run start:prod`
 - Config file: `apps/api/railway.json`
 
 Railway 환경변수에는 Supabase, Prisma, AI provider 값을 입력합니다. OpenAI/Gemini 키가 없으면 `AI_PROVIDER=mock`으로 시작합니다.

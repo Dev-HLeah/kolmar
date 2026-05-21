@@ -9,5 +9,6 @@ docs/request/
 .env.*.local
 .idea/
 node_modules/
+.pnpm-store/
 dist/
 coverage/

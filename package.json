@@ -2,24 +2,24 @@
   "name": "kolma-ai-formulation-poc",
   "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "apps/web",
-    "apps/api"
-  ],
+  "packageManager": "pnpm@11.0.8",
   "scripts": {
-    "dev:web": "npm --workspace apps/web run dev",
-    "dev:web:dev": "npm --workspace apps/web run dev -- --mode dev",
-    "dev:web:prd": "npm --workspace apps/web run dev -- --mode prd",
-    "dev:api": "npm --workspace apps/api run start:dev",
-    "dev:api:dev": "APP_ENV=dev npm --workspace apps/api run start:dev",
-    "dev:api:prd": "APP_ENV=prd npm --workspace apps/api run start:dev",
-    "build:web": "npm --workspace apps/web run build",
-    "build:web:dev": "npm --workspace apps/web run build -- --mode dev",
-    "build:web:prd": "npm --workspace apps/web run build -- --mode prd",
-    "build:api": "npm --workspace apps/api run build",
-    "test:api": "npm --workspace apps/api run test",
-    "test:api:e2e": "npm --workspace apps/api run test:e2e",
-    "lint:web": "npm --workspace apps/web run lint",
-    "lint:api": "npm --workspace apps/api run lint"
+    "dev:web": "pnpm --filter web run dev",
+    "dev:web:dev": "pnpm --filter web run dev -- --mode dev",
+    "dev:web:prd": "pnpm --filter web run dev -- --mode prd",
+    "dev:api": "pnpm --filter api run start:dev",
+    "dev:api:dev": "APP_ENV=dev pnpm --filter api run start:dev",
+    "dev:api:prd": "APP_ENV=prd pnpm --filter api run start:dev",
+    "build:web": "pnpm --filter web run build",
+    "build:web:dev": "pnpm --filter web run build -- --mode dev",
+    "build:web:prd": "pnpm --filter web run build -- --mode prd",
+    "build:api": "pnpm --filter api run build",
+    "test:api": "pnpm --filter api run test",
+    "test:api:e2e": "pnpm --filter api run test:e2e",
+    "test:web": "pnpm --filter web run test",
+    "lint:web": "pnpm --filter web run lint",
+    "lint:api": "pnpm --filter api run lint",
+    "seed:dev": "APP_ENV=dev pnpm --filter api run seed",
+    "seed:prd": "APP_ENV=prd pnpm --filter api run seed"
   }
 }
