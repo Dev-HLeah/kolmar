@@ -62,6 +62,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false)
   const [recentIngredients, setRecentIngredients] = useState(readRecentIngredients)
   const [activeSuggestionRow, setActiveSuggestionRow] = useState<number | null>(null)
+  const formulaSummary = getFormulaSummary(rows)
 
   function updateRow(index: number, key: keyof FormulaRow, value: string) {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)))
@@ -460,6 +461,18 @@ export function FormulaInputTable({ rows, onChange }: Props) {
           </tbody>
         </table>
       </div>
+
+      <section
+        className={`formula-summary${formulaSummary.isRatioOverLimit ? ' is-warning' : ''}`}
+        aria-label="배합 합계"
+      >
+        <span>입력 원료 {formulaSummary.rowCount}개</span>
+        <span>함량 합계 {formulaSummary.amountLabel}</span>
+        <span>비율 합계 {formulaSummary.ratioLabel}</span>
+        {formulaSummary.isRatioOverLimit ? (
+          <strong>비율 합계가 100%를 초과했습니다.</strong>
+        ) : null}
+      </section>
     </div>
   )
 }
@@ -519,6 +532,66 @@ function compactRecentIngredients(ingredients: string[]) {
   }
 
   return compacted
+}
+
+function getFormulaSummary(rows: FormulaRow[]) {
+  const amountTotals = new Map<string, number>()
+  let totalRatio = 0
+
+  rows.forEach((row) => {
+    const amount = parseFormulaNumber(row.amount)
+
+    if (amount !== null) {
+      const unit = normalizeUnit(row.unit, 'mg')
+      amountTotals.set(unit, (amountTotals.get(unit) ?? 0) + amount)
+    }
+
+    const ratio = parseFormulaNumber(row.ratio)
+
+    if (ratio !== null) {
+      totalRatio += ratio
+    }
+  })
+
+  return {
+    rowCount: rows.filter(hasFormulaValue).length,
+    amountLabel: formatAmountTotals(amountTotals),
+    ratioLabel: `${formatSummaryNumber(totalRatio)}%`,
+    isRatioOverLimit: totalRatio > 100,
+  }
+}
+
+function hasFormulaValue(row: FormulaRow) {
+  return [row.ingredientName, row.amount, row.ratio, row.note].some(
+    (value) => value.trim().length > 0,
+  )
+}
+
+function parseFormulaNumber(value: string) {
+  const normalized = value.trim().replace(/,/g, '')
+
+  if (!normalized) {
+    return null
+  }
+
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatAmountTotals(amountTotals: Map<string, number>) {
+  if (!amountTotals.size) {
+    return '0'
+  }
+
+  return [...amountTotals.entries()]
+    .map(([unit, amount]) => `${formatSummaryNumber(amount)} ${unit}`)
+    .join(' + ')
+}
+
+function formatSummaryNumber(value: number) {
+  return Number(value.toFixed(6)).toLocaleString('ko-KR', {
+    maximumFractionDigits: 6,
+  })
 }
 
 function getIngredientSuggestions(query: string, recentIngredients: string[]) {

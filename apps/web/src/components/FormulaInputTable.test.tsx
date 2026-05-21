@@ -191,4 +191,38 @@ describe('FormulaInputTable', () => {
     expect(screen.getByLabelText('원료명 1')).toHaveValue('비타민 C')
     expect(screen.queryByRole('region', { name: '원료 자동완성 1' })).not.toBeInTheDocument()
   })
+
+  it('summarizes formula totals and warns when the ratio exceeds 100 percent', () => {
+    render(
+      <FormulaInputTable
+        rows={[
+          { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '60', note: '' },
+          { ingredientName: '아연', amount: '1000', unit: 'mg', ratio: '45', note: '' },
+        ]}
+        onChange={() => undefined}
+      />,
+    )
+
+    const summary = screen.getByRole('region', { name: '배합 합계' })
+
+    expect(within(summary).getByText('입력 원료 2개')).toBeInTheDocument()
+    expect(within(summary).getByText('함량 합계 1,500 mg')).toBeInTheDocument()
+    expect(within(summary).getByText('비율 합계 105%')).toBeInTheDocument()
+    expect(within(summary).getByText('비율 합계가 100%를 초과했습니다.')).toBeInTheDocument()
+  })
+
+  it('does not count an empty row as an entered ingredient', () => {
+    render(
+      <FormulaInputTable
+        rows={[{ ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' }]}
+        onChange={() => undefined}
+      />,
+    )
+
+    const summary = screen.getByRole('region', { name: '배합 합계' })
+
+    expect(within(summary).getByText('입력 원료 0개')).toBeInTheDocument()
+    expect(within(summary).getByText('함량 합계 0')).toBeInTheDocument()
+    expect(within(summary).getByText('비율 합계 0%')).toBeInTheDocument()
+  })
 })

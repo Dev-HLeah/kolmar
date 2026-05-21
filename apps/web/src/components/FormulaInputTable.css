@@ -189,6 +189,40 @@
   overflow-x: auto;
 }
 
+.formula-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.formula-summary span,
+.formula-summary strong {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.formula-summary strong {
+  border-color: #f0b7b7;
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.formula-summary.is-warning {
+  background: #fffafa;
+}
+
 .formula-table {
   width: 100%;
   min-width: 820px;
