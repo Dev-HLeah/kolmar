@@ -251,6 +251,7 @@ export function ProjectDetailPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | TryStatus>('all')
   const [markType, setMarkType] = useState<TryMarkType>('PROMISING')
   const [markReason, setMarkReason] = useState('')
+  const [markedTypeFilter, setMarkedTypeFilter] = useState<'all' | TryMarkType>('all')
   const [groupTitle, setGroupTitle] = useState('')
   const [groupPurpose, setGroupPurpose] = useState('')
   const [tryTitle, setTryTitle] = useState('')
@@ -290,6 +291,13 @@ export function ProjectDetailPage() {
     [groups],
   )
   const markedCount = markedTryRows.length
+  const visibleMarkedTryRows = useMemo(
+    () =>
+      markedTryRows.filter(
+        ({ tryRow }) => markedTypeFilter === 'all' || tryRow.mark?.type === markedTypeFilter,
+      ),
+    [markedTryRows, markedTypeFilter],
+  )
   const visibleTries = useMemo(
     () =>
       tries.filter((item) => {
@@ -372,6 +380,7 @@ export function ProjectDetailPage() {
         setEditTryNumber(nextActiveGroup.tries[0] ? String(nextActiveGroup.tries[0].id) : '')
         setResultTryNumber('')
         setStatusFilter('all')
+        setMarkedTypeFilter('all')
         syncEditForm(nextActiveGroup.tries[0])
         setNotice('')
       } catch {
@@ -386,6 +395,7 @@ export function ProjectDetailPage() {
         setEditTryNumber(String(initialTries[0].id))
         setResultTryNumber('')
         setStatusFilter('all')
+        setMarkedTypeFilter('all')
         syncEditForm(initialTries[0])
         setNotice(fallbackNotice)
       }
@@ -875,8 +885,22 @@ export function ProjectDetailPage() {
         <section className="project-marked-tries">
           <div className="panel-heading compact">
             <h3>프로젝트 의미 Try</h3>
-            <span>{markedTryRows.length}건</span>
+            <span>{visibleMarkedTryRows.length}건</span>
           </div>
+          <label className="project-mark-filter">
+            프로젝트 의미 Try 유형 필터
+            <select
+              value={markedTypeFilter}
+              onChange={(event) => setMarkedTypeFilter(event.target.value as 'all' | TryMarkType)}
+            >
+              <option value="all">전체 유형</option>
+              {tryMarkOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="workflow-table-wrap">
             <table className="workflow-table">
               <thead>
@@ -890,7 +914,7 @@ export function ProjectDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {markedTryRows.map(({ groupId, groupName, tryRow }) => (
+                {visibleMarkedTryRows.map(({ groupId, groupName, tryRow }) => (
                   <tr key={`${groupId}-${tryRow.id}`}>
                     <td>{groupName}</td>
                     <td>try#{tryRow.id}</td>
@@ -900,7 +924,7 @@ export function ProjectDetailPage() {
                     <td>{tryRow.mark?.reason || '-'}</td>
                   </tr>
                 ))}
-                {markedTryRows.length === 0 ? (
+                {visibleMarkedTryRows.length === 0 ? (
                   <tr>
                     <td colSpan={6}>프로젝트에 마킹된 Try 없음</td>
                   </tr>

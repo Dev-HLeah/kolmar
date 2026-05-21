@@ -200,6 +200,30 @@ describe('ProjectDetailPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('filters project meaningful tries by mark type without changing the group try list', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail({ markSecondGroup: true })
+
+    renderProjectDetail()
+
+    await findApiCandidateRow()
+    await user.selectOptions(screen.getByLabelText('프로젝트 의미 Try 유형 필터'), 'FINAL_CANDIDATE')
+
+    expect(
+      screen.queryByRole('row', {
+        name: 'API 신물 억제 그룹 try#2 API 후보 후보 유망 관능 후보',
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('row', {
+        name: '맛 개선 그룹 try#10 감미료 조정 테스트 완료 최종 후보 최종 후보 검토',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', { name: 'try#2 API 후보 후보 유망 try#2 마킹 try#2 삭제' }),
+    ).toBeInTheDocument()
+  })
+
   it('switches between experiment groups and shows group-specific tries', async () => {
     const user = userEvent.setup()
     mockProjectDetail()
