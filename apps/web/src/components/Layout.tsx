@@ -3,11 +3,19 @@ import { useRole } from '../auth/role-context'
 import { USER_ROLE_LABELS, USER_ROLES, type UserRole } from '../auth/roles'
 import './Layout.css'
 
-const navItems = [
+type NavItem = {
+  to: string
+  label: string
+  end?: boolean
+  roles?: UserRole[]
+}
+
+const navItems: NavItem[] = [
   { to: '/', label: '대시보드', end: true },
   { to: '/products', label: '제품/처방' },
   { to: '/projects', label: '프로젝트' },
   { to: '/knowledge', label: '근거 검색' },
+  { to: '/audit-logs', label: '운영 로그', roles: ['admin'] },
 ]
 
 export function Layout() {
@@ -27,16 +35,18 @@ export function Layout() {
         </div>
 
         <nav className="nav-links">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => (isActive ? 'active' : undefined)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          {navItems
+            .filter((item) => !item.roles || item.roles.includes(role))
+            .map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => (isActive ? 'active' : undefined)}
+              >
+                {item.label}
+              </NavLink>
+            ))}
         </nav>
       </aside>
 

@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { Layout } from '../components/Layout'
+import { AuditLogPage } from '../pages/AuditLogPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { KnowledgeSearchPage } from '../pages/KnowledgeSearchPage'
 import { ProductDetailPage } from '../pages/ProductDetailPage'
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: 'projects', element: <ProjectsPage /> },
       { path: 'projects/:projectId', element: <ProjectDetailPage /> },
       { path: 'knowledge', element: <KnowledgeSearchPage /> },
+      { path: 'audit-logs', element: <AuditLogPage /> },
     ],
   },
 ])
