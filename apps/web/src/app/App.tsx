@@ -1,6 +1,11 @@
 import { RouterProvider } from 'react-router-dom'
+import { RoleProvider } from '../auth/RoleProvider'
 import { router } from './routes'
 
 export function App() {
-  return <RouterProvider router={router} />
+  return (
+    <RoleProvider>
+      <RouterProvider router={router} />
+    </RoleProvider>
+  )
 }

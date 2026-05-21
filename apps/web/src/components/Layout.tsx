@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useRole } from '../auth/role-context'
+import { USER_ROLE_LABELS, USER_ROLES, type UserRole } from '../auth/roles'
 import './Layout.css'
 
 const navItems = [
@@ -8,6 +10,8 @@ const navItems = [
 ]
 
 export function Layout() {
+  const { role, setRole } = useRole()
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="주요 메뉴">
@@ -41,7 +45,16 @@ export function Layout() {
             <span className="workspace-eyebrow">Health Functional Food</span>
             <h1>AI 배합 설계 워크스페이스</h1>
           </div>
-          <div className="role-badge">연구원</div>
+          <label className="role-control">
+            <span>접근 역할</span>
+            <select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
+              {USER_ROLES.map((item) => (
+                <option key={item} value={item}>
+                  {USER_ROLE_LABELS[item]}
+                </option>
+              ))}
+            </select>
+          </label>
         </header>
         <main className="content">
           <Outlet />

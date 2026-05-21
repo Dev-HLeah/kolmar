@@ -1,11 +1,46 @@
+import { DEFAULT_USER_ROLE, type UserRole } from '../auth/roles'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`)
+let activeRole: UserRole = DEFAULT_USER_ROLE
+
+export function setApiRole(role: UserRole) {
+  activeRole = role
+}
+
+export function getApiRole() {
+  return activeRole
+}
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'x-user-role': activeRole,
+    },
+  })
 
   if (!response.ok) {
-    throw new Error(`GET ${path} failed: ${response.status}`)
+    throw new Error(`${init?.method ?? 'GET'} ${path} failed: ${response.status}`)
   }
 
   return response.json() as Promise<T>
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  return requestJson<T>(path)
+}
+
+export async function apiPost<TResponse, TBody extends object>(
+  path: string,
+  body: TBody,
+): Promise<TResponse> {
+  return requestJson<TResponse>(path, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
 }
