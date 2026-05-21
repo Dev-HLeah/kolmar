@@ -247,6 +247,28 @@ export function FormulaInputTable({ rows, onChange }: Props) {
     )
   }
 
+  function normalizeAmountsToMilligrams() {
+    if (!formulaSummary.canNormalizeToMilligrams) {
+      return
+    }
+
+    onChange(
+      rows.map((row) => {
+        const amount = parseFormulaNumber(row.amount)
+
+        if (amount === null || !convertibleUnits.has(row.unit)) {
+          return row
+        }
+
+        return {
+          ...row,
+          amount: formatAmount(row.unit === 'g' ? amount * 1000 : amount),
+          unit: 'mg',
+        }
+      }),
+    )
+  }
+
   return (
     <div className="formula-input">
       <div className="formula-toolbar">
@@ -495,6 +517,14 @@ export function FormulaInputTable({ rows, onChange }: Props) {
         <button
           type="button"
           className="summary-action-button"
+          disabled={!formulaSummary.canNormalizeToMilligrams}
+          onClick={normalizeAmountsToMilligrams}
+        >
+          mg로 전체 통일
+        </button>
+        <button
+          type="button"
+          className="summary-action-button"
           disabled={!formulaSummary.canCalculateRatio}
           onClick={calculateRatiosFromAmounts}
         >
@@ -594,6 +624,7 @@ function getFormulaSummary(rows: FormulaRow[]) {
     ratioLabel: `${formatSummaryNumber(totalRatio)}%`,
     isRatioOverLimit: totalRatio > 100,
     canCalculateRatio: ratioBasis !== null,
+    canNormalizeToMilligrams: canNormalizeAmountsToMilligrams(rows),
     ratioCalculationHint: ratioBasis ? null : getRatioCalculationHint(rows),
   }
 }
@@ -647,6 +678,19 @@ function getRatioCalculationHint(rows: FormulaRow[]) {
   }
 
   return null
+}
+
+function canNormalizeAmountsToMilligrams(rows: FormulaRow[]) {
+  const amountRows = getAmountRows(rows)
+
+  if (!amountRows.length) {
+    return false
+  }
+
+  return (
+    amountRows.every((row) => convertibleUnits.has(row.unit)) &&
+    amountRows.some((row) => row.unit === 'g')
+  )
 }
 
 function getAmountRows(rows: FormulaRow[]) {

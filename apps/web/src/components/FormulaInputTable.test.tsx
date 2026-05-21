@@ -277,4 +277,28 @@ describe('FormulaInputTable', () => {
     expect(within(summary).getByRole('button', { name: '함량 기준 비율 계산' })).toBeDisabled()
     expect(within(summary).getByText('단위가 섞여 있어 비율 계산 전 단위 통일이 필요합니다.')).toBeInTheDocument()
   })
+
+  it('normalizes mixed gram and milligram amounts to milligrams', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '', note: '' },
+        { ingredientName: '아연', amount: '1', unit: 'g', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    await user.click(screen.getByRole('button', { name: 'mg로 전체 통일' }))
+
+    expect(screen.getByLabelText('함량 1')).toHaveValue('500')
+    expect(screen.getByLabelText('단위 1')).toHaveValue('mg')
+    expect(screen.getByLabelText('함량 2')).toHaveValue('1000')
+    expect(screen.getByLabelText('단위 2')).toHaveValue('mg')
+    expect(screen.getByText('함량 합계 1,500 mg')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '함량 기준 비율 계산' })).toBeEnabled()
+  })
 })
