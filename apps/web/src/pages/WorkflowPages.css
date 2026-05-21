@@ -264,6 +264,24 @@
   font-weight: 700;
 }
 
+.formulation-guidance {
+  display: grid;
+  gap: 12px;
+}
+
+.guidance-context,
+.guidance-summary {
+  margin: 0 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 150%;
+}
+
+.guidance-context {
+  color: var(--heading);
+  font-weight: 700;
+}
+
 @media (max-width: 980px) {
   .workflow-grid {
     grid-template-columns: 1fr;

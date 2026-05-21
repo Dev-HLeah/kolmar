@@ -31,6 +31,17 @@ describe('ProductDetailPage', () => {
         return []
       }
 
+      if (path === '/products/product-api-1/formulation-guidance') {
+        return {
+          productId: 'product-api-1',
+          dosageFormName: '이중 제형 정제',
+          packagingName: 'Multi PTP',
+          kolmarSpecial: true,
+          summary: '이중 제형 정제 기반으로 콜마 특화 제형과 초기 안정성 신호를 검토합니다.',
+          signals: [],
+        }
+      }
+
       return {
         id: 'product-api-1',
         name: 'API 제품 처방',
@@ -107,6 +118,17 @@ describe('ProductDetailPage', () => {
         ]
       }
 
+      if (path === '/products/product-api-1/formulation-guidance') {
+        return {
+          productId: 'product-api-1',
+          dosageFormName: '이중 제형 정제',
+          packagingName: 'Multi PTP',
+          kolmarSpecial: true,
+          summary: '이중 제형 정제 기반으로 콜마 특화 제형과 초기 안정성 신호를 검토합니다.',
+          signals: [],
+        }
+      }
+
       return {
         id: 'product-api-1',
         name: 'API 제품 처방',
@@ -135,5 +157,72 @@ describe('ProductDetailPage', () => {
     expect(screen.getByText('유사도 98%')).toBeInTheDocument()
     expect(screen.getByText('공통 원료 2개, 평균 비율 차이 2.0')).toBeInTheDocument()
     expect(screen.getByText('비타민 C 40% → 38%')).toBeInTheDocument()
+  })
+
+  it('loads dosage form stability guidance for Kolmar specialized formulas', async () => {
+    apiGetMock.mockImplementation(async (path) => {
+      if (path === '/products/product-api-1/similar-formulas') {
+        return []
+      }
+
+      if (path === '/products/product-api-1/formulation-guidance') {
+        return {
+          productId: 'product-api-1',
+          dosageFormName: '츄어블 정제',
+          packagingName: 'Multi PTP',
+          kolmarSpecial: true,
+          summary: '츄어블 정제 기반으로 콜마 특화 제형과 초기 안정성 신호를 검토합니다.',
+          signals: [
+            {
+              type: 'kolmar-dosage-form',
+              label: '콜마 특화 제형',
+              severity: 'positive',
+              message: '츄어블 정제는 콜마 특화 제형 후보입니다.',
+              checkItems: ['맛 마스킹', '정제 경도', '붕해/용해'],
+            },
+            {
+              type: 'taste-masking',
+              label: '맛 마스킹 필요',
+              severity: 'caution',
+              message:
+                '산미 또는 관능 이슈가 있는 원료가 포함되어 츄어블 정제에서 맛 마스킹 확인이 필요합니다.',
+              checkItems: ['산미', '쓴맛', '감미료 조화'],
+            },
+          ],
+        }
+      }
+
+      return {
+        id: 'product-api-1',
+        name: 'API 제품 처방',
+        function: '위 건강',
+        dosageForm: { name: '츄어블 정제' },
+        packaging: { name: 'Multi PTP' },
+        formulas: [
+          {
+            ingredients: [
+              {
+                ratio: '40',
+                role: '산미',
+                ingredient: { name: '비타민 C' },
+              },
+            ],
+          },
+        ],
+      }
+    })
+
+    renderProductDetail()
+
+    expect(await screen.findByRole('heading', { name: '제형 안정성 가이드' })).toBeInTheDocument()
+    expect(apiGetMock).toHaveBeenCalledWith('/products/product-api-1/formulation-guidance')
+    expect(screen.getByText('츄어블 정제 · Multi PTP')).toBeInTheDocument()
+    expect(screen.getByText('콜마 특화 제형')).toBeInTheDocument()
+    expect(screen.getByText('맛 마스킹 필요')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        '산미 또는 관능 이슈가 있는 원료가 포함되어 츄어블 정제에서 맛 마스킹 확인이 필요합니다.',
+      ),
+    ).toBeInTheDocument()
   })
 })

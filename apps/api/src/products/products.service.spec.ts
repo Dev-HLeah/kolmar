@@ -156,4 +156,66 @@ describe('ProductsService', () => {
       take: 20,
     });
   });
+
+  it('returns formulation guidance for Kolmar specialized solid forms', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 'product-1',
+      name: '츄어블 기준 처방',
+      dosageForm: {
+        name: '츄어블 정제',
+        isKolmarSpecial: true,
+      },
+      packaging: {
+        name: 'Multi PTP',
+        isKolmarSpecial: true,
+      },
+      formulas: [
+        {
+          ingredients: [
+            {
+              role: '산미',
+              ingredient: {
+                name: '비타민 C',
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await service.findFormulationGuidance('product-1');
+
+    expect(result).toEqual({
+      productId: 'product-1',
+      dosageFormName: '츄어블 정제',
+      packagingName: 'Multi PTP',
+      kolmarSpecial: true,
+      summary:
+        '츄어블 정제 기반으로 콜마 특화 제형과 초기 안정성 신호를 검토합니다.',
+      signals: [
+        {
+          type: 'kolmar-dosage-form',
+          label: '콜마 특화 제형',
+          severity: 'positive',
+          message: '츄어블 정제는 콜마 특화 제형 후보입니다.',
+          checkItems: ['맛 마스킹', '정제 경도', '붕해/용해'],
+        },
+        {
+          type: 'kolmar-packaging',
+          label: '콜마 특화 포장',
+          severity: 'positive',
+          message: 'Multi PTP 포장 적용성을 함께 검토할 수 있습니다.',
+          checkItems: ['습기 차단', '개별 포장 안정성'],
+        },
+        {
+          type: 'taste-masking',
+          label: '맛 마스킹 필요',
+          severity: 'caution',
+          message:
+            '산미 또는 관능 이슈가 있는 원료가 포함되어 츄어블 정제에서 맛 마스킹 확인이 필요합니다.',
+          checkItems: ['산미', '쓴맛', '감미료 조화'],
+        },
+      ],
+    });
+  });
 });

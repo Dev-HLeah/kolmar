@@ -32,6 +32,7 @@ const kolmarPackagingOptions = new Set(['스틱 포장', 'Multi PTP']);
 
 type FormulaIngredientForSimilarity = {
   ratio?: unknown;
+  role?: string | null;
   ingredient?: {
     name?: string | null;
   } | null;
@@ -46,6 +47,14 @@ type FormulaForSimilarity = {
 type ProductForSimilarity = {
   id: string;
   name: string;
+  dosageForm?: {
+    name?: string | null;
+    isKolmarSpecial?: boolean | null;
+  } | null;
+  packaging?: {
+    name?: string | null;
+    isKolmarSpecial?: boolean | null;
+  } | null;
   formulas?: FormulaForSimilarity[];
 };
 
@@ -129,6 +138,14 @@ export class ProductsService {
     })) as unknown as ProductForSimilarity[];
 
     return toSimilarFormulaRecommendations(targetProduct, candidateProducts);
+  }
+
+  async findFormulationGuidance(id: string) {
+    const product = (await this.findProductById(
+      id,
+    )) as unknown as ProductForSimilarity;
+
+    return toFormulationGuidance(product);
   }
 
   private toFormulaIngredientCreateInput(
@@ -333,4 +350,95 @@ function hasDecimalToNumber(
 
 function roundOne(value: number) {
   return Math.round(value * 10) / 10;
+}
+
+function toFormulationGuidance(product: ProductForSimilarity) {
+  const dosageFormName = product.dosageForm?.name?.trim() ?? '제형 미입력';
+  const packagingName = product.packaging?.name?.trim() ?? '포장 미입력';
+  const isKolmarDosageForm =
+    Boolean(product.dosageForm?.isKolmarSpecial) ||
+    kolmarDosageForms.has(dosageFormName);
+  const isKolmarPackaging =
+    Boolean(product.packaging?.isKolmarSpecial) ||
+    kolmarPackagingOptions.has(packagingName);
+  const signals = [
+    ...(isKolmarDosageForm
+      ? [
+          {
+            type: 'kolmar-dosage-form',
+            label: '콜마 특화 제형',
+            severity: 'positive',
+            message: `${dosageFormName}는 콜마 특화 제형 후보입니다.`,
+            checkItems: toDosageFormCheckItems(dosageFormName),
+          },
+        ]
+      : []),
+    ...(isKolmarPackaging
+      ? [
+          {
+            type: 'kolmar-packaging',
+            label: '콜마 특화 포장',
+            severity: 'positive',
+            message: `${packagingName} 포장 적용성을 함께 검토할 수 있습니다.`,
+            checkItems: ['습기 차단', '개별 포장 안정성'],
+          },
+        ]
+      : []),
+    ...(hasTasteMaskingRisk(product)
+      ? [
+          {
+            type: 'taste-masking',
+            label: '맛 마스킹 필요',
+            severity: 'caution',
+            message: `산미 또는 관능 이슈가 있는 원료가 포함되어 ${dosageFormName}에서 맛 마스킹 확인이 필요합니다.`,
+            checkItems: ['산미', '쓴맛', '감미료 조화'],
+          },
+        ]
+      : []),
+  ];
+
+  return {
+    productId: product.id,
+    dosageFormName,
+    packagingName,
+    kolmarSpecial: isKolmarDosageForm || isKolmarPackaging,
+    summary: `${dosageFormName} 기반으로 콜마 특화 제형과 초기 안정성 신호를 검토합니다.`,
+    signals:
+      signals.length > 0
+        ? signals
+        : [
+            {
+              type: 'initial-stability',
+              label: '초기 안정성 검토',
+              severity: 'info',
+              message:
+                '공정 변경 전 흐름성, 흡습성, 붕해/용해, 포장 적합성을 확인합니다.',
+              checkItems: ['흐름성', '흡습성', '붕해/용해'],
+            },
+          ],
+  };
+}
+
+function toDosageFormCheckItems(dosageFormName: string) {
+  if (dosageFormName.includes('츄어블')) {
+    return ['맛 마스킹', '정제 경도', '붕해/용해'];
+  }
+
+  if (dosageFormName.includes('분말')) {
+    return ['흡습성', '흐름성', '맛 마스킹'];
+  }
+
+  return ['제형 안정성', '공정 조건', '품질 기준'];
+}
+
+function hasTasteMaskingRisk(product: ProductForSimilarity) {
+  const tasteRiskTerms = ['산미', '쓴맛', '맛', '관능', '감미', '향'];
+
+  return (product.formulas?.[0]?.ingredients ?? []).some((ingredient) => {
+    const searchableText = [ingredient.role, ingredient.ingredient?.name]
+      .filter((value) => value)
+      .join(' ');
+
+    return tasteRiskTerms.some((term) => searchableText.includes(term));
+  });
 }

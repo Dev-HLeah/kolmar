@@ -52,6 +52,23 @@ type SimilarFormulaIngredient = {
   ratioDifference: number
 }
 
+type FormulationGuidance = {
+  productId: string
+  dosageFormName: string
+  packagingName: string
+  kolmarSpecial: boolean
+  summary: string
+  signals: FormulationSignal[]
+}
+
+type FormulationSignal = {
+  type: string
+  label: string
+  severity: string
+  message: string
+  checkItems: string[]
+}
+
 const referenceRows: FormulaRow[] = [
   { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '', note: '산미' },
   { ingredientName: '아연', amount: '', unit: 'mg', ratio: '', note: '선택값' },
@@ -66,6 +83,7 @@ const referenceSummary: ProductSummary = {
 
 const fallbackNotice = 'API 연결 실패로 샘플 기준 처방을 표시합니다.'
 const similarFallbackNotice = 'API 연결 실패로 로컬 유사 배합 후보를 표시합니다.'
+const formulationFallbackNotice = 'API 연결 실패로 로컬 제형 가이드를 표시합니다.'
 
 const sampleSimilarRecommendations: SimilarFormulaRecommendation[] = [
   {
@@ -93,6 +111,31 @@ const sampleSimilarRecommendations: SimilarFormulaRecommendation[] = [
   },
 ]
 
+const sampleFormulationGuidance: FormulationGuidance = {
+  productId: 'sample-product-1',
+  dosageFormName: '츄어블 정제',
+  packagingName: 'Multi PTP',
+  kolmarSpecial: true,
+  summary: '츄어블 정제 기반으로 콜마 특화 제형과 초기 안정성 신호를 검토합니다.',
+  signals: [
+    {
+      type: 'kolmar-dosage-form',
+      label: '콜마 특화 제형',
+      severity: 'positive',
+      message: '츄어블 정제는 콜마 특화 제형 후보입니다.',
+      checkItems: ['맛 마스킹', '정제 경도', '붕해/용해'],
+    },
+    {
+      type: 'taste-masking',
+      label: '맛 마스킹 필요',
+      severity: 'caution',
+      message:
+        '산미 또는 관능 이슈가 있는 원료가 포함되어 츄어블 정제에서 맛 마스킹 확인이 필요합니다.',
+      checkItems: ['산미', '쓴맛', '감미료 조화'],
+    },
+  ],
+}
+
 export function ProductDetailPage() {
   const { productId } = useParams()
   const [summary, setSummary] = useState(referenceSummary)
@@ -102,6 +145,8 @@ export function ProductDetailPage() {
     SimilarFormulaRecommendation[]
   >([])
   const [similarNotice, setSimilarNotice] = useState('')
+  const [formulationGuidance, setFormulationGuidance] = useState<FormulationGuidance | null>(null)
+  const [formulationNotice, setFormulationNotice] = useState('')
 
   useEffect(() => {
     if (!productId) {
@@ -141,6 +186,26 @@ export function ProductDetailPage() {
           setSimilarRecommendations(sampleSimilarRecommendations)
           setSimilarNotice(similarFallbackNotice)
         }
+
+        try {
+          const guidance = await apiGet<FormulationGuidance>(
+            `/products/${productId}/formulation-guidance`,
+          )
+
+          if (!isActive) {
+            return
+          }
+
+          setFormulationGuidance(guidance)
+          setFormulationNotice('')
+        } catch {
+          if (!isActive) {
+            return
+          }
+
+          setFormulationGuidance(sampleFormulationGuidance)
+          setFormulationNotice(formulationFallbackNotice)
+        }
       } catch {
         if (isActive) {
           setSummary(referenceSummary)
@@ -148,6 +213,8 @@ export function ProductDetailPage() {
           setNotice(fallbackNotice)
           setSimilarRecommendations(sampleSimilarRecommendations)
           setSimilarNotice(similarFallbackNotice)
+          setFormulationGuidance(sampleFormulationGuidance)
+          setFormulationNotice(formulationFallbackNotice)
         }
       }
     }
@@ -196,6 +263,41 @@ export function ProductDetailPage() {
           <p className="empty-result">배합 비율이 있는 등록 제품이 쌓이면 유사 후보가 표시됩니다.</p>
         )}
       </section>
+      <section className="workflow-panel">
+        <div className="panel-heading compact">
+          <h3>제형 안정성 가이드</h3>
+          <span>{formulationGuidance?.signals.length ?? 0}건</span>
+        </div>
+        {formulationNotice ? <p className="local-notice">{formulationNotice}</p> : null}
+        {formulationGuidance ? (
+          <div className="formulation-guidance">
+            <div>
+              <p className="guidance-context">
+                {formulationGuidance.dosageFormName} · {formulationGuidance.packagingName}
+              </p>
+              <p className="guidance-summary">{formulationGuidance.summary}</p>
+            </div>
+            <div className="similar-formula-list">
+              {formulationGuidance.signals.map((signal) => (
+                <article className="similar-formula-card" key={signal.type}>
+                  <div className="similar-formula-heading">
+                    <h3>{signal.label}</h3>
+                    <span className="status-pill">{toSeverityLabel(signal.severity)}</span>
+                  </div>
+                  <p>{signal.message}</p>
+                  <ul>
+                    {signal.checkItems.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="empty-result">제형과 원료 정보가 쌓이면 초기 안정성 신호가 표시됩니다.</p>
+        )}
+      </section>
     </div>
   )
 }
@@ -242,4 +344,16 @@ function formatMatchedIngredient(ingredient: SimilarFormulaIngredient) {
 
 function formatRatio(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
+}
+
+function toSeverityLabel(severity: string) {
+  if (severity === 'positive') {
+    return '추천'
+  }
+
+  if (severity === 'caution') {
+    return '주의'
+  }
+
+  return '검토'
 }
