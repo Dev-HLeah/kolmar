@@ -16,6 +16,7 @@ describe('ProjectsService', () => {
       create: jest.Mock;
       delete: jest.Mock;
       findMany: jest.Mock;
+      update: jest.Mock;
     };
     $transaction: jest.Mock;
     tryTestResult: {
@@ -40,6 +41,7 @@ describe('ProjectsService', () => {
       create: jest.fn(),
       delete: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
     },
     $transaction: jest.fn(),
     tryTestResult: {
@@ -214,6 +216,71 @@ describe('ProjectsService', () => {
           tryId: 'try-1',
           measuredItem: null,
           judgment: null,
+        },
+      },
+    });
+  });
+
+  it('updates optional formula try fields and replaces ingredients when provided', async () => {
+    const updatedTry = { id: 'try-1', groupId: 'group-1', tryNumber: 2 };
+    prisma.formulaTry.update.mockResolvedValue(updatedTry);
+
+    const result = await service.updateFormulaTry('try-1', {
+      title: '맛 개선 후보',
+      dosageForm: '츄어블 정제',
+      manufacturingProcess: '직타',
+      memo: '쓴맛 보완',
+      ingredients: [
+        {
+          ingredientName: '테아닌',
+          amount: '200',
+          unit: 'mg',
+          ratio: '40',
+          note: '맛',
+        },
+      ],
+    });
+
+    expect(result).toBe(updatedTry);
+    expect(prisma.formulaTry.update).toHaveBeenCalledWith({
+      where: {
+        id: 'try-1',
+      },
+      data: {
+        title: '맛 개선 후보',
+        dosageForm: '츄어블 정제',
+        manufacturingProcess: '직타',
+        memo: '쓴맛 보완',
+        ingredients: {
+          deleteMany: {},
+          create: [
+            {
+              amount: '200',
+              unit: 'mg',
+              ratio: '40',
+              note: '맛',
+              ingredient: {
+                connectOrCreate: {
+                  where: { name: '테아닌' },
+                  create: { name: '테아닌' },
+                },
+              },
+            },
+          ],
+        },
+      },
+      include: expect.any(Object),
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'FORMULA_TRY_UPDATED',
+        targetType: 'FormulaTry',
+        targetId: 'try-1',
+        summary: 'try 수정: try#2',
+        metadata: {
+          groupId: 'group-1',
+          tryNumber: 2,
+          ingredientCount: 1,
         },
       },
     });

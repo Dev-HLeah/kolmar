@@ -1,13 +1,18 @@
 import type { FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { apiDelete, apiGet, apiPost } from '../api/client'
+import { apiDelete, apiGet, apiPatch, apiPost } from '../api/client'
+import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './WorkflowPages.css'
 
 type TryRow = {
   id: number
   apiId?: string
   title: string
+  dosageForm: string
+  manufacturingProcess: string
+  memo: string
+  ingredients: FormulaRow[]
   marked: boolean
 }
 
@@ -15,7 +20,21 @@ type ApiFormulaTry = {
   id: string
   tryNumber: number
   title?: string | null
+  dosageForm?: string | null
+  manufacturingProcess?: string | null
+  memo?: string | null
+  ingredients?: ApiTryIngredient[]
   marks?: unknown[]
+}
+
+type ApiTryIngredient = {
+  amount?: string | number | null
+  unit?: string | null
+  ratio?: string | number | null
+  note?: string | null
+  ingredient?: {
+    name?: string | null
+  } | null
 }
 
 type ApiTryMark = {
@@ -46,14 +65,69 @@ type ApiProject = {
 const sampleGroupId = 'sample-group'
 const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
 const fallbackNotice = 'API 연결 실패로 샘플 프로젝트를 표시합니다.'
+const emptyFormulaRow: FormulaRow = { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' }
 
 const initialTries: TryRow[] = [
-  { id: 1, apiId: 'sample-try-1', title: '기준 처방', marked: false },
-  { id: 2, apiId: 'sample-try-2', title: '신물 억제 후보', marked: false },
-  { id: 3, apiId: 'sample-try-3', title: '맛 개선 후보', marked: false },
-  { id: 4, apiId: 'sample-try-4', title: '정제 안정성 후보', marked: false },
-  { id: 5, apiId: 'sample-try-5', title: '제조 공정 후보', marked: false },
-  { id: 6, apiId: 'sample-try-6', title: '포장 적합성 후보', marked: false },
+  {
+    id: 1,
+    apiId: 'sample-try-1',
+    title: '기준 처방',
+    dosageForm: '정제',
+    manufacturingProcess: '',
+    memo: '',
+    ingredients: [{ ...emptyFormulaRow, ingredientName: '비타민 C', amount: '500', note: '산미' }],
+    marked: false,
+  },
+  {
+    id: 2,
+    apiId: 'sample-try-2',
+    title: '신물 억제 후보',
+    dosageForm: '',
+    manufacturingProcess: '',
+    memo: '',
+    ingredients: [{ ...emptyFormulaRow }],
+    marked: false,
+  },
+  {
+    id: 3,
+    apiId: 'sample-try-3',
+    title: '맛 개선 후보',
+    dosageForm: '',
+    manufacturingProcess: '',
+    memo: '',
+    ingredients: [{ ...emptyFormulaRow }],
+    marked: false,
+  },
+  {
+    id: 4,
+    apiId: 'sample-try-4',
+    title: '정제 안정성 후보',
+    dosageForm: '',
+    manufacturingProcess: '',
+    memo: '',
+    ingredients: [{ ...emptyFormulaRow }],
+    marked: false,
+  },
+  {
+    id: 5,
+    apiId: 'sample-try-5',
+    title: '제조 공정 후보',
+    dosageForm: '',
+    manufacturingProcess: '',
+    memo: '',
+    ingredients: [{ ...emptyFormulaRow }],
+    marked: false,
+  },
+  {
+    id: 6,
+    apiId: 'sample-try-6',
+    title: '포장 적합성 후보',
+    dosageForm: '',
+    manufacturingProcess: '',
+    memo: '',
+    ingredients: [{ ...emptyFormulaRow }],
+    marked: false,
+  },
 ]
 
 const sampleProjectName = '신물 억제 고형제 개발'
@@ -69,6 +143,14 @@ export function ProjectDetailPage() {
   const [tries, setTries] = useState(initialTries)
   const [tryFilter, setTryFilter] = useState<'all' | 'marked'>('all')
   const [tryTitle, setTryTitle] = useState('')
+  const [editTryNumber, setEditTryNumber] = useState('1')
+  const [editTitle, setEditTitle] = useState(initialTries[0].title)
+  const [editDosageForm, setEditDosageForm] = useState(initialTries[0].dosageForm)
+  const [editManufacturingProcess, setEditManufacturingProcess] = useState(
+    initialTries[0].manufacturingProcess,
+  )
+  const [editMemo, setEditMemo] = useState(initialTries[0].memo)
+  const [editFormulaRows, setEditFormulaRows] = useState<FormulaRow[]>(initialTries[0].ingredients)
   const [resultTryNumber, setResultTryNumber] = useState('')
   const [testPurpose, setTestPurpose] = useState('')
   const [measuredItem, setMeasuredItem] = useState('')
@@ -82,6 +164,10 @@ export function ProjectDetailPage() {
     () => (tryFilter === 'marked' ? tries.filter((item) => item.marked) : tries),
     [tries, tryFilter],
   )
+  const selectedEditTry = useMemo(
+    () => tries.find((item) => String(item.id) === editTryNumber) ?? tries[0],
+    [editTryNumber, tries],
+  )
   const effectiveResultTryNumber =
     tries.find((item) => String(item.id) === resultTryNumber) ?? tries[0]
   const selectedResultTry = useMemo(
@@ -93,6 +179,25 @@ export function ProjectDetailPage() {
     [tries],
   )
   const trySummary = tries.length > 0 ? `try#1-${maxTryNumber}` : 'try 없음'
+
+  const syncEditForm = useCallback((targetTry?: TryRow) => {
+    if (!targetTry) {
+      setEditTitle('')
+      setEditDosageForm('')
+      setEditManufacturingProcess('')
+      setEditMemo('')
+      setEditFormulaRows([{ ...emptyFormulaRow }])
+      return
+    }
+
+    setEditTitle(targetTry.title)
+    setEditDosageForm(targetTry.dosageForm)
+    setEditManufacturingProcess(targetTry.manufacturingProcess)
+    setEditMemo(targetTry.memo)
+    setEditFormulaRows(
+      targetTry.ingredients.length > 0 ? targetTry.ingredients : [{ ...emptyFormulaRow }],
+    )
+  }, [])
 
   useEffect(() => {
     if (!projectId) {
@@ -115,7 +220,10 @@ export function ProjectDetailPage() {
         setProjectDescription(toProjectDescription(project))
         setGroupName(primaryGroup?.name?.trim() || '기본 그룹')
         setActiveGroupId(primaryGroup?.id || sampleGroupId)
-        setTries(toTryRows(primaryGroup?.tries ?? []))
+        const loadedTries = toTryRows(primaryGroup?.tries ?? [])
+        setTries(loadedTries)
+        setEditTryNumber(loadedTries[0] ? String(loadedTries[0].id) : '')
+        syncEditForm(loadedTries[0])
         setNotice('')
       } catch {
         if (!isActive) {
@@ -127,6 +235,8 @@ export function ProjectDetailPage() {
         setGroupName(sampleGroupName)
         setActiveGroupId(sampleGroupId)
         setTries(initialTries)
+        setEditTryNumber(String(initialTries[0].id))
+        syncEditForm(initialTries[0])
         setNotice(fallbackNotice)
       }
     }
@@ -136,7 +246,7 @@ export function ProjectDetailPage() {
     return () => {
       isActive = false
     }
-  }, [projectId])
+  }, [projectId, syncEditForm])
 
   async function toggleMarked(id: number) {
     const targetTry = tries.find((item) => item.id === id)
@@ -202,12 +312,27 @@ export function ProjectDetailPage() {
           id: createdTry.tryNumber,
           apiId: createdTry.id,
           title: createdTry.title?.trim() || title,
+          dosageForm: createdTry.dosageForm?.trim() || '',
+          manufacturingProcess: createdTry.manufacturingProcess?.trim() || '',
+          memo: createdTry.memo?.trim() || '',
+          ingredients: toFormulaRows(createdTry.ingredients ?? []),
           marked: false,
         },
       ])
       setNotice('')
     } catch {
-      setTries((current) => [...current, { id: nextId, title, marked: false }])
+      setTries((current) => [
+        ...current,
+        {
+          id: nextId,
+          title,
+          dosageForm: '',
+          manufacturingProcess: '',
+          memo: '',
+          ingredients: [{ ...emptyFormulaRow }],
+          marked: false,
+        },
+      ])
       setNotice(localOnlyNotice)
     }
   }
@@ -265,6 +390,65 @@ export function ProjectDetailPage() {
       setResultMemo('')
       setNotice('테스트 결과가 등록됐습니다.')
     } catch {
+      setNotice(localOnlyNotice)
+    }
+  }
+
+  async function saveTryFormula(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!selectedEditTry) {
+      return
+    }
+
+    const payload = {
+      title: nullableText(editTitle),
+      dosageForm: nullableText(editDosageForm),
+      manufacturingProcess: nullableText(editManufacturingProcess),
+      memo: nullableText(editMemo),
+      ingredients: toIngredientPayload(editFormulaRows),
+    }
+
+    const localUpdatedTry: TryRow = {
+      ...selectedEditTry,
+      title: editTitle.trim() || `try#${selectedEditTry.id}`,
+      dosageForm: editDosageForm.trim(),
+      manufacturingProcess: editManufacturingProcess.trim(),
+      memo: editMemo.trim(),
+      ingredients: editFormulaRows,
+    }
+
+    if (!selectedEditTry.apiId) {
+      setTries((current) =>
+        current.map((item) => (item.id === selectedEditTry.id ? localUpdatedTry : item)),
+      )
+      setNotice(localOnlyNotice)
+      return
+    }
+
+    try {
+      const updatedTry = await apiPatch<ApiFormulaTry, typeof payload>(
+        `/projects/tries/${selectedEditTry.apiId}`,
+        payload,
+      )
+      const [updatedRow] = toTryRows([updatedTry])
+
+      setTries((current) =>
+        current.map((item) =>
+          item.id === selectedEditTry.id
+            ? {
+                ...item,
+                ...updatedRow,
+                marked: item.marked || updatedRow.marked,
+              }
+            : item,
+        ),
+      )
+      setNotice('Try 배합 정보가 저장됐습니다.')
+    } catch {
+      setTries((current) =>
+        current.map((item) => (item.id === selectedEditTry.id ? localUpdatedTry : item)),
+      )
       setNotice(localOnlyNotice)
     }
   }
@@ -358,6 +542,60 @@ export function ProjectDetailPage() {
           </button>
         </form>
         {notice ? <p className="local-notice">{notice}</p> : null}
+        <form className="try-detail-form" onSubmit={saveTryFormula}>
+          <div className="panel-heading compact">
+            <h3>Try 배합 정보</h3>
+            <span>선택 입력</span>
+          </div>
+          <div className="try-detail-grid">
+            <label>
+              편집 Try
+              <select
+                value={selectedEditTry ? String(selectedEditTry.id) : ''}
+                onChange={(event) => {
+                  const nextTryNumber = event.target.value
+                  setEditTryNumber(nextTryNumber)
+                  syncEditForm(tries.find((item) => String(item.id) === nextTryNumber))
+                }}
+              >
+                {tries.map((item) => (
+                  <option key={item.id} value={String(item.id)}>
+                    try#{item.id} {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Try 제목
+              <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
+            </label>
+            <label>
+              제형
+              <input
+                value={editDosageForm}
+                onChange={(event) => setEditDosageForm(event.target.value)}
+              />
+            </label>
+            <label>
+              제조 공정
+              <input
+                value={editManufacturingProcess}
+                onChange={(event) => setEditManufacturingProcess(event.target.value)}
+              />
+            </label>
+            <label className="wide-field">
+              Try 메모
+              <input value={editMemo} onChange={(event) => setEditMemo(event.target.value)} />
+            </label>
+          </div>
+          <FormulaInputTable rows={editFormulaRows} onChange={setEditFormulaRows} />
+          <div className="form-actions">
+            <span>원료명만 입력된 행도 저장됩니다.</span>
+            <button type="submit" className="primary-dashboard-button">
+              Try 배합 저장
+            </button>
+          </div>
+        </form>
         <div className="workflow-table-wrap">
           <table className="workflow-table">
             <thead>
@@ -428,6 +666,44 @@ function toTryRows(tries: ApiFormulaTry[]): TryRow[] {
       id: item.tryNumber,
       apiId: item.id,
       title: item.title?.trim() || `try#${item.tryNumber}`,
+      dosageForm: item.dosageForm?.trim() || '',
+      manufacturingProcess: item.manufacturingProcess?.trim() || '',
+      memo: item.memo?.trim() || '',
+      ingredients: toFormulaRows(item.ingredients ?? []),
       marked: (item.marks?.length ?? 0) > 0,
     }))
+}
+
+function toFormulaRows(ingredients: ApiTryIngredient[]): FormulaRow[] {
+  const rows = ingredients
+    .filter((ingredient) => ingredient.ingredient?.name?.trim())
+    .map((ingredient) => ({
+      ingredientName: ingredient.ingredient?.name?.trim() ?? '',
+      amount: toFieldValue(ingredient.amount),
+      unit: ingredient.unit?.trim() || 'mg',
+      ratio: toFieldValue(ingredient.ratio),
+      note: ingredient.note?.trim() ?? '',
+    }))
+
+  return rows.length > 0 ? rows : [{ ...emptyFormulaRow }]
+}
+
+function toFieldValue(value?: string | number | null) {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  return String(value)
+}
+
+function toIngredientPayload(rows: FormulaRow[]) {
+  return rows
+    .map((row) => ({
+      ingredientName: row.ingredientName.trim(),
+      amount: nullableText(row.amount),
+      unit: nullableText(row.unit),
+      ratio: nullableText(row.ratio),
+      note: nullableText(row.note),
+    }))
+    .filter((row) => row.ingredientName)
 }

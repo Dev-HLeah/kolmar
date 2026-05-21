@@ -9,6 +9,7 @@ import {
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateTestResultDto } from './dto/create-test-result.dto';
 import { CreateTryMarkDto } from './dto/create-try-mark.dto';
+import { UpdateFormulaTryDto } from './dto/update-formula-try.dto';
 
 const formulaTryInclude = {
   ingredients: {
@@ -199,6 +200,50 @@ export class ProjectsService {
     return testResult;
   }
 
+  async updateFormulaTry(tryId: string, dto: UpdateFormulaTryDto) {
+    const ingredients = dto.ingredients
+      ?.map((ingredient) => this.toTryIngredientCreateInput(ingredient))
+      .filter((ingredient) => ingredient !== undefined);
+
+    const formulaTry = await this.prisma.formulaTry.update({
+      where: {
+        id: tryId,
+      },
+      data: {
+        status: dto.status ?? undefined,
+        title: cleanNullableString(dto.title),
+        dosageForm: cleanNullableString(dto.dosageForm),
+        manufacturingProcess: cleanNullableString(dto.manufacturingProcess),
+        memo: cleanNullableString(dto.memo),
+        ...(ingredients
+          ? {
+              ingredients: {
+                deleteMany: {},
+                create: ingredients,
+              },
+            }
+          : {}),
+      },
+      include: formulaTryInclude,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'FORMULA_TRY_UPDATED',
+        targetType: 'FormulaTry',
+        targetId: formulaTry.id,
+        summary: `try 수정: try#${formulaTry.tryNumber}`,
+        metadata: {
+          groupId: formulaTry.groupId,
+          tryNumber: formulaTry.tryNumber,
+          ingredientCount: ingredients ? ingredients.length : null,
+        },
+      },
+    });
+
+    return formulaTry;
+  }
+
   async createTryMark(tryId: string, dto: CreateTryMarkDto) {
     const mark = await this.prisma.tryMark.create({
       data: {
@@ -291,6 +336,15 @@ export class ProjectsService {
 function cleanString(value?: string | null) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function cleanNullableString(value?: string | null) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function cleanDecimal(value?: number | string | null) {

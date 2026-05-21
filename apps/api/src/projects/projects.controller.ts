@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { RequireRoles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role';
 import { CreateExperimentGroupDto } from './dto/create-experiment-group.dto';
@@ -6,6 +14,7 @@ import { CreateFormulaTryDto } from './dto/create-formula-try.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { CreateTestResultDto } from './dto/create-test-result.dto';
 import { CreateTryMarkDto } from './dto/create-try-mark.dto';
+import { UpdateFormulaTryDto } from './dto/update-formula-try.dto';
 import { ProjectsService } from './projects.service';
 
 @Controller('projects')
@@ -49,6 +58,15 @@ export class ProjectsController {
     @Body() dto: CreateFormulaTryDto,
   ) {
     return this.projectsService.createFormulaTry(groupId, dto);
+  }
+
+  @Patch('tries/:tryId')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
+  updateFormulaTry(
+    @Param('tryId') tryId: string,
+    @Body() dto: UpdateFormulaTryDto,
+  ) {
+    return this.projectsService.updateFormulaTry(tryId, dto);
   }
 
   @Post('tries/:tryId/test-results')

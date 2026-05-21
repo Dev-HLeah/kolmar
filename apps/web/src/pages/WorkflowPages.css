@@ -182,6 +182,47 @@
   grid-column: span 2;
 }
 
+.try-detail-form {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
+.try-detail-form .formula-input {
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+.try-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.try-detail-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.try-detail-grid input,
+.try-detail-grid select {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.try-detail-grid .wide-field {
+  grid-column: span 2;
+}
+
 .local-notice {
   margin: 0 16px 12px;
   padding: 10px 12px;
@@ -319,7 +360,15 @@
     grid-template-columns: 1fr;
   }
 
+  .try-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
   .test-result-form .wide-field {
+    grid-column: auto;
+  }
+
+  .try-detail-grid .wide-field {
     grid-column: auto;
   }
 

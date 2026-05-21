@@ -45,6 +45,19 @@ export async function apiPost<TResponse, TBody extends object>(
   })
 }
 
+export async function apiPatch<TResponse, TBody extends object>(
+  path: string,
+  body: TBody,
+): Promise<TResponse> {
+  return requestJson<TResponse>(path, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+}
+
 export async function apiDelete<TResponse>(path: string): Promise<TResponse> {
   return requestJson<TResponse>(path, {
     method: 'DELETE',

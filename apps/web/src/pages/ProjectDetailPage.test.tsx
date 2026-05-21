@@ -2,17 +2,19 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiDelete, apiGet, apiPost } from '../api/client'
+import { apiDelete, apiGet, apiPatch, apiPost } from '../api/client'
 import { ProjectDetailPage } from './ProjectDetailPage'
 
 vi.mock('../api/client', () => ({
   apiDelete: vi.fn(),
   apiGet: vi.fn(),
+  apiPatch: vi.fn(),
   apiPost: vi.fn(),
 }))
 
 const apiDeleteMock = vi.mocked(apiDelete)
 const apiGetMock = vi.mocked(apiGet)
+const apiPatchMock = vi.mocked(apiPatch)
 const apiPostMock = vi.mocked(apiPost)
 
 function renderProjectDetail(projectId = 'project-api-1') {
@@ -40,6 +42,20 @@ function mockProjectDetail() {
             id: 'api-try-1',
             tryNumber: 1,
             title: '기준 처방',
+            dosageForm: '정제',
+            manufacturingProcess: '직타',
+            memo: '초기 기준',
+            ingredients: [
+              {
+                amount: '500',
+                unit: 'mg',
+                ratio: '40',
+                note: '산미',
+                ingredient: {
+                  name: '비타민 C',
+                },
+              },
+            ],
             marks: [],
           },
           {
@@ -58,6 +74,7 @@ describe('ProjectDetailPage', () => {
   beforeEach(() => {
     apiDeleteMock.mockReset()
     apiGetMock.mockReset()
+    apiPatchMock.mockReset()
     apiPostMock.mockReset()
   })
 
@@ -199,6 +216,66 @@ describe('ProjectDetailPage', () => {
       memo: null,
     })
     expect(screen.getByText('테스트 결과가 등록됐습니다.')).toBeInTheDocument()
+  })
+
+  it('saves selected try formula details with optional ingredient rows', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+    apiPatchMock.mockResolvedValueOnce({
+      id: 'api-try-1',
+      tryNumber: 1,
+      title: '기준 처방 개선',
+      dosageForm: '츄어블 정제',
+      manufacturingProcess: '직타',
+      memo: '쓴맛 보완',
+      ingredients: [
+        {
+          amount: '500',
+          unit: 'mg',
+          ratio: '40',
+          note: '산미',
+          ingredient: {
+            name: '비타민 C',
+          },
+        },
+      ],
+      marks: [],
+    })
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+
+    expect(screen.getByRole('heading', { name: 'Try 배합 정보' })).toBeInTheDocument()
+    expect(screen.getByLabelText('원료명 1')).toHaveValue('비타민 C')
+
+    await user.clear(screen.getByLabelText('Try 제목'))
+    await user.type(screen.getByLabelText('Try 제목'), '기준 처방 개선')
+    await user.clear(screen.getByLabelText('제형'))
+    await user.type(screen.getByLabelText('제형'), '츄어블 정제')
+    await user.clear(screen.getByLabelText('Try 메모'))
+    await user.type(screen.getByLabelText('Try 메모'), '쓴맛 보완')
+    await user.click(screen.getByRole('button', { name: 'Try 배합 저장' }))
+
+    expect(apiPatchMock).toHaveBeenCalledWith('/projects/tries/api-try-1', {
+      title: '기준 처방 개선',
+      dosageForm: '츄어블 정제',
+      manufacturingProcess: '직타',
+      memo: '쓴맛 보완',
+      ingredients: [
+        {
+          ingredientName: '비타민 C',
+          amount: '500',
+          unit: 'mg',
+          ratio: '40',
+          note: '산미',
+        },
+      ],
+    })
+    expect(screen.getByText('Try 배합 정보가 저장됐습니다.')).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', { name: 'try#1 기준 처방 개선 일반 try#1 마킹 try#1 삭제' }),
+    ).toBeInTheDocument()
   })
 
   it('keeps test result entry local when the API is unavailable', async () => {
