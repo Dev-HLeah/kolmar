@@ -56,12 +56,25 @@ function mockProjectDetail() {
                 },
               },
             ],
+            testResults: [
+              {
+                id: 'result-1',
+                testPurpose: '초기 확인',
+                measuredItem: '붕해 시간',
+                measuredValue: '12',
+                unit: '분',
+                judgment: '적합',
+                memo: '기준 통과',
+                createdAt: '2026-05-21T00:00:00.000Z',
+              },
+            ],
             marks: [],
           },
           {
             id: 'api-try-2',
             tryNumber: 2,
             title: 'API 후보',
+            testResults: [],
             marks: [{ id: 'mark-1' }],
           },
         ],
@@ -195,6 +208,13 @@ describe('ProjectDetailPage', () => {
     apiPostMock.mockResolvedValueOnce({
       id: 'result-1',
       tryId: 'api-try-1',
+      testPurpose: null,
+      measuredItem: '붕해 시간',
+      measuredValue: '12',
+      unit: null,
+      judgment: '적합',
+      memo: null,
+      createdAt: '2026-05-21T00:10:00.000Z',
     })
 
     renderProjectDetail()
@@ -216,6 +236,26 @@ describe('ProjectDetailPage', () => {
       memo: null,
     })
     expect(screen.getByText('테스트 결과가 등록됐습니다.')).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', {
+        name: 'try#1 - 붕해 시간 12 적합 -',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows loaded try test result history', async () => {
+    mockProjectDetail()
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+
+    expect(screen.getByRole('heading', { name: '테스트 결과 이력' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', {
+        name: 'try#1 초기 확인 붕해 시간 12 분 적합 기준 통과',
+      }),
+    ).toBeInTheDocument()
   })
 
   it('saves selected try formula details with optional ingredient rows', async () => {
@@ -290,6 +330,11 @@ describe('ProjectDetailPage', () => {
     await user.click(screen.getByRole('button', { name: '테스트 결과 등록' }))
 
     expect(screen.getByText('API 연결 실패로 로컬 화면에만 반영됐습니다.')).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', {
+        name: 'try#1 - 색 - - -',
+      }),
+    ).toBeInTheDocument()
   })
 
   it('keeps local try changes visible when the API is unavailable', async () => {

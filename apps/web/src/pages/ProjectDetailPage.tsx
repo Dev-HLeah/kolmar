@@ -13,7 +13,19 @@ type TryRow = {
   manufacturingProcess: string
   memo: string
   ingredients: FormulaRow[]
+  testResults: TryTestResultRow[]
   marked: boolean
+}
+
+type TryTestResultRow = {
+  id: string
+  testPurpose: string
+  measuredItem: string
+  measuredValue: string
+  unit: string
+  judgment: string
+  memo: string
+  createdAt?: string
 }
 
 type ApiFormulaTry = {
@@ -24,6 +36,7 @@ type ApiFormulaTry = {
   manufacturingProcess?: string | null
   memo?: string | null
   ingredients?: ApiTryIngredient[]
+  testResults?: ApiTestResult[]
   marks?: unknown[]
 }
 
@@ -45,6 +58,13 @@ type ApiTryMark = {
 type ApiTestResult = {
   id: string
   tryId: string
+  testPurpose?: string | null
+  measuredItem?: string | null
+  measuredValue?: string | number | null
+  unit?: string | null
+  judgment?: string | null
+  memo?: string | null
+  createdAt?: string | null
 }
 
 type ApiExperimentGroup = {
@@ -76,6 +96,7 @@ const initialTries: TryRow[] = [
     manufacturingProcess: '',
     memo: '',
     ingredients: [{ ...emptyFormulaRow, ingredientName: '비타민 C', amount: '500', note: '산미' }],
+    testResults: [],
     marked: false,
   },
   {
@@ -86,6 +107,7 @@ const initialTries: TryRow[] = [
     manufacturingProcess: '',
     memo: '',
     ingredients: [{ ...emptyFormulaRow }],
+    testResults: [],
     marked: false,
   },
   {
@@ -96,6 +118,7 @@ const initialTries: TryRow[] = [
     manufacturingProcess: '',
     memo: '',
     ingredients: [{ ...emptyFormulaRow }],
+    testResults: [],
     marked: false,
   },
   {
@@ -106,6 +129,7 @@ const initialTries: TryRow[] = [
     manufacturingProcess: '',
     memo: '',
     ingredients: [{ ...emptyFormulaRow }],
+    testResults: [],
     marked: false,
   },
   {
@@ -116,6 +140,7 @@ const initialTries: TryRow[] = [
     manufacturingProcess: '',
     memo: '',
     ingredients: [{ ...emptyFormulaRow }],
+    testResults: [],
     marked: false,
   },
   {
@@ -126,6 +151,7 @@ const initialTries: TryRow[] = [
     manufacturingProcess: '',
     memo: '',
     ingredients: [{ ...emptyFormulaRow }],
+    testResults: [],
     marked: false,
   },
 ]
@@ -173,6 +199,16 @@ export function ProjectDetailPage() {
   const selectedResultTry = useMemo(
     () => tries.find((item) => item.id === effectiveResultTryNumber?.id),
     [effectiveResultTryNumber, tries],
+  )
+  const testResultRows = useMemo(
+    () =>
+      tries.flatMap((formulaTry) =>
+        formulaTry.testResults.map((result) => ({
+          ...result,
+          tryNumber: formulaTry.id,
+        })),
+      ),
+    [tries],
   )
   const maxTryNumber = useMemo(
     () => tries.reduce((highest, item) => Math.max(highest, item.id), 0),
@@ -316,6 +352,7 @@ export function ProjectDetailPage() {
           manufacturingProcess: createdTry.manufacturingProcess?.trim() || '',
           memo: createdTry.memo?.trim() || '',
           ingredients: toFormulaRows(createdTry.ingredients ?? []),
+          testResults: toTestResultRows(createdTry.testResults ?? []),
           marked: false,
         },
       ])
@@ -330,6 +367,7 @@ export function ProjectDetailPage() {
           manufacturingProcess: '',
           memo: '',
           ingredients: [{ ...emptyFormulaRow }],
+          testResults: [],
           marked: false,
         },
       ])
@@ -358,30 +396,27 @@ export function ProjectDetailPage() {
     event.preventDefault()
 
     if (!selectedResultTry?.apiId) {
+      appendTestResult(selectedResultTry?.id, toLocalTestResult())
       setNotice(localOnlyNotice)
       return
     }
 
-    try {
-      await apiPost<
-        ApiTestResult,
-        {
-          testPurpose: string | null
-          measuredItem: string | null
-          measuredValue: string | null
-          unit: string | null
-          judgment: string | null
-          memo: string | null
-        }
-      >(`/projects/tries/${selectedResultTry.apiId}/test-results`, {
-        testPurpose: nullableText(testPurpose),
-        measuredItem: nullableText(measuredItem),
-        measuredValue: nullableText(measuredValue),
-        unit: nullableText(unit),
-        judgment: nullableText(judgment),
-        memo: nullableText(resultMemo),
-      })
+    const payload = {
+      testPurpose: nullableText(testPurpose),
+      measuredItem: nullableText(measuredItem),
+      measuredValue: nullableText(measuredValue),
+      unit: nullableText(unit),
+      judgment: nullableText(judgment),
+      memo: nullableText(resultMemo),
+    }
 
+    try {
+      const createdResult = await apiPost<ApiTestResult, typeof payload>(
+        `/projects/tries/${selectedResultTry.apiId}/test-results`,
+        payload,
+      )
+
+      appendTestResult(selectedResultTry.id, toTestResultRow(createdResult))
       setTestPurpose('')
       setMeasuredItem('')
       setMeasuredValue('')
@@ -390,7 +425,32 @@ export function ProjectDetailPage() {
       setResultMemo('')
       setNotice('테스트 결과가 등록됐습니다.')
     } catch {
+      appendTestResult(selectedResultTry.id, toLocalTestResult())
       setNotice(localOnlyNotice)
+    }
+  }
+
+  function appendTestResult(tryNumber: number | undefined, result: TryTestResultRow) {
+    if (!tryNumber) {
+      return
+    }
+
+    setTries((current) =>
+      current.map((item) =>
+        item.id === tryNumber ? { ...item, testResults: [result, ...item.testResults] } : item,
+      ),
+    )
+  }
+
+  function toLocalTestResult(): TryTestResultRow {
+    return {
+      id: `local-${Date.now()}`,
+      testPurpose: '',
+      measuredItem: measuredItem.trim(),
+      measuredValue: measuredValue.trim(),
+      unit: unit.trim(),
+      judgment: judgment.trim(),
+      memo: resultMemo.trim(),
     }
   }
 
@@ -542,6 +602,43 @@ export function ProjectDetailPage() {
           </button>
         </form>
         {notice ? <p className="local-notice">{notice}</p> : null}
+        <section className="test-result-history">
+          <div className="panel-heading compact">
+            <h3>테스트 결과 이력</h3>
+            <span>{testResultRows.length}건</span>
+          </div>
+          <div className="workflow-table-wrap">
+            <table className="workflow-table">
+              <thead>
+                <tr>
+                  <th>Try</th>
+                  <th>시험 목적</th>
+                  <th>측정 항목</th>
+                  <th>측정값</th>
+                  <th>판정</th>
+                  <th>메모</th>
+                </tr>
+              </thead>
+              <tbody>
+                {testResultRows.map((result) => (
+                  <tr key={result.id}>
+                    <td>try#{result.tryNumber}</td>
+                    <td>{result.testPurpose || '-'}</td>
+                    <td>{result.measuredItem || '-'}</td>
+                    <td>{formatMeasurement(result)}</td>
+                    <td>{result.judgment || '-'}</td>
+                    <td>{result.memo || '-'}</td>
+                  </tr>
+                ))}
+                {testResultRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>등록된 테스트 결과 없음</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <form className="try-detail-form" onSubmit={saveTryFormula}>
           <div className="panel-heading compact">
             <h3>Try 배합 정보</h3>
@@ -670,6 +767,7 @@ function toTryRows(tries: ApiFormulaTry[]): TryRow[] {
       manufacturingProcess: item.manufacturingProcess?.trim() || '',
       memo: item.memo?.trim() || '',
       ingredients: toFormulaRows(item.ingredients ?? []),
+      testResults: toTestResultRows(item.testResults ?? []),
       marked: (item.marks?.length ?? 0) > 0,
     }))
 }
@@ -706,4 +804,32 @@ function toIngredientPayload(rows: FormulaRow[]) {
       note: nullableText(row.note),
     }))
     .filter((row) => row.ingredientName)
+}
+
+function toTestResultRows(results: ApiTestResult[]): TryTestResultRow[] {
+  return results.map(toTestResultRow)
+}
+
+function toTestResultRow(result: ApiTestResult): TryTestResultRow {
+  return {
+    id: result.id,
+    testPurpose: result.testPurpose?.trim() ?? '',
+    measuredItem: result.measuredItem?.trim() ?? '',
+    measuredValue: toFieldValue(result.measuredValue),
+    unit: result.unit?.trim() ?? '',
+    judgment: result.judgment?.trim() ?? '',
+    memo: result.memo?.trim() ?? '',
+    createdAt: result.createdAt ?? undefined,
+  }
+}
+
+function formatMeasurement(result: TryTestResultRow) {
+  const value = result.measuredValue.trim()
+  const measurementUnit = result.unit.trim()
+
+  if (!value && !measurementUnit) {
+    return '-'
+  }
+
+  return [value, measurementUnit].filter(Boolean).join(' ')
 }

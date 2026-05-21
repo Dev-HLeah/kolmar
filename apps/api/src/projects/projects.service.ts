@@ -17,7 +17,11 @@ const formulaTryInclude = {
       ingredient: true,
     },
   },
-  testResults: true,
+  testResults: {
+    orderBy: {
+      createdAt: 'desc' as const,
+    },
+  },
   marks: true,
 };
 

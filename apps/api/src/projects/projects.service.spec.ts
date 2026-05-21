@@ -161,6 +161,33 @@ describe('ProjectsService', () => {
     });
   });
 
+  it('loads project detail with try test results newest first', async () => {
+    const project = { id: 'project-1', name: '신물 억제 정제' };
+    prisma.developmentProject.findUnique.mockResolvedValue(project);
+
+    const result = await service.findProjectById('project-1');
+
+    expect(result).toBe(project);
+    expect(prisma.developmentProject.findUnique).toHaveBeenCalledWith({
+      where: { id: 'project-1' },
+      include: expect.objectContaining({
+        groups: expect.objectContaining({
+          include: expect.objectContaining({
+            tries: expect.objectContaining({
+              include: expect.objectContaining({
+                testResults: {
+                  orderBy: {
+                    createdAt: 'desc',
+                  },
+                },
+              }),
+            }),
+          }),
+        }),
+      }),
+    });
+  });
+
   it('deletes one formula try when the user removes it from a group', async () => {
     const deletedTry = { id: 'try-1', groupId: 'group-1', tryNumber: 1 };
     prisma.formulaTry.delete.mockResolvedValue(deletedTry);
