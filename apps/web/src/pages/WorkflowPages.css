@@ -109,6 +109,14 @@
   padding: 0 16px 16px;
 }
 
+.group-add-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 0 16px 16px;
+}
+
 .view-toggle {
   display: flex;
   flex-wrap: wrap;
@@ -133,7 +141,8 @@
   background: var(--accent-soft);
 }
 
-.try-add-form label {
+.try-add-form label,
+.group-add-form label {
   display: grid;
   gap: 6px;
   color: var(--text-muted);
@@ -141,7 +150,8 @@
   font-weight: 700;
 }
 
-.try-add-form input {
+.try-add-form input,
+.group-add-form input {
   min-height: 38px;
   width: 100%;
   padding: 0 10px;
@@ -353,6 +363,10 @@
   }
 
   .try-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .group-add-form {
     grid-template-columns: 1fr;
   }
 

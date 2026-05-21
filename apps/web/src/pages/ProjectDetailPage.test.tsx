@@ -37,6 +37,7 @@ function mockProjectDetail() {
       {
         id: 'api-group-1',
         name: 'API 신물 억제 그룹',
+        purpose: '위 건강 후보',
         tries: [
           {
             id: 'api-try-1',
@@ -76,6 +77,24 @@ function mockProjectDetail() {
             title: 'API 후보',
             testResults: [],
             marks: [{ id: 'mark-1' }],
+          },
+        ],
+      },
+      {
+        id: 'api-group-2',
+        name: '맛 개선 그룹',
+        purpose: '관능 개선',
+        tries: [
+          {
+            id: 'api-try-10',
+            tryNumber: 10,
+            title: '감미료 조정',
+            dosageForm: '정제',
+            manufacturingProcess: '직타',
+            memo: '단맛 보완',
+            ingredients: [],
+            testResults: [],
+            marks: [],
           },
         ],
       },
@@ -125,6 +144,53 @@ describe('ProjectDetailPage', () => {
     expect(
       screen.getByRole('row', { name: 'try#1 기준 처방 일반 try#1 마킹 try#1 삭제' }),
     ).toBeInTheDocument()
+  })
+
+  it('switches between experiment groups and shows group-specific tries', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+    await user.click(screen.getByRole('button', { name: '맛 개선 그룹' }))
+
+    expect(screen.getByText('try#1-10')).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', { name: 'try#10 감미료 조정 일반 try#10 마킹 try#10 삭제' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: 'try#1 기준 처방 일반 try#1 마킹 try#1 삭제' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByLabelText('결과 등록 Try')).toHaveValue('10')
+  })
+
+  it('creates a new experiment group from the project detail screen', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+    apiPostMock.mockResolvedValueOnce({
+      id: 'api-group-3',
+      name: '안정성 개선 그룹',
+      purpose: '가속 안정성',
+      tries: [],
+    })
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+    await user.type(screen.getByLabelText('실험 그룹명'), '안정성 개선 그룹')
+    await user.type(screen.getByLabelText('그룹 목적'), '가속 안정성')
+    await user.click(screen.getByRole('button', { name: '그룹 추가' }))
+
+    expect(apiPostMock).toHaveBeenCalledWith('/projects/project-api-1/groups', {
+      name: '안정성 개선 그룹',
+      purpose: '가속 안정성',
+    })
+    expect(screen.getByRole('button', { name: '안정성 개선 그룹' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByText('try 없음')).toBeInTheDocument()
+    expect(screen.getByText('마킹된 Try 없음')).toBeInTheDocument()
   })
 
   it('marks meaningful tries for project review', async () => {

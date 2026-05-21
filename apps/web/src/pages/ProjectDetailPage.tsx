@@ -28,6 +28,13 @@ type TryTestResultRow = {
   createdAt?: string
 }
 
+type ExperimentGroupRow = {
+  id: string
+  name: string
+  purpose: string
+  tries: TryRow[]
+}
+
 type ApiFormulaTry = {
   id: string
   tryNumber: number
@@ -70,6 +77,7 @@ type ApiTestResult = {
 type ApiExperimentGroup = {
   id: string
   name: string
+  purpose?: string | null
   tries?: ApiFormulaTry[]
 }
 
@@ -159,15 +167,24 @@ const initialTries: TryRow[] = [
 const sampleProjectName = '신물 억제 고형제 개발'
 const sampleProjectDescription = '그룹별 try와 테스트 기록을 관리'
 const sampleGroupName = '신물 억제 그룹'
+const initialGroups: ExperimentGroupRow[] = [
+  {
+    id: sampleGroupId,
+    name: sampleGroupName,
+    purpose: '',
+    tries: initialTries,
+  },
+]
 
 export function ProjectDetailPage() {
   const { projectId } = useParams()
   const [projectName, setProjectName] = useState(sampleProjectName)
   const [projectDescription, setProjectDescription] = useState(sampleProjectDescription)
-  const [groupName, setGroupName] = useState(sampleGroupName)
+  const [groups, setGroups] = useState<ExperimentGroupRow[]>(initialGroups)
   const [activeGroupId, setActiveGroupId] = useState(sampleGroupId)
-  const [tries, setTries] = useState(initialTries)
   const [tryFilter, setTryFilter] = useState<'all' | 'marked'>('all')
+  const [groupTitle, setGroupTitle] = useState('')
+  const [groupPurpose, setGroupPurpose] = useState('')
   const [tryTitle, setTryTitle] = useState('')
   const [editTryNumber, setEditTryNumber] = useState('1')
   const [editTitle, setEditTitle] = useState(initialTries[0].title)
@@ -185,7 +202,19 @@ export function ProjectDetailPage() {
   const [judgment, setJudgment] = useState('')
   const [resultMemo, setResultMemo] = useState('')
   const [notice, setNotice] = useState('')
-  const markedCount = useMemo(() => tries.filter((item) => item.marked).length, [tries])
+  const activeGroup = useMemo(
+    () => groups.find((group) => group.id === activeGroupId) ?? groups[0],
+    [activeGroupId, groups],
+  )
+  const tries = useMemo(() => activeGroup?.tries ?? [], [activeGroup])
+  const markedCount = useMemo(
+    () =>
+      groups.reduce(
+        (total, group) => total + group.tries.filter((item) => item.marked).length,
+        0,
+      ),
+    [groups],
+  )
   const visibleTries = useMemo(
     () => (tryFilter === 'marked' ? tries.filter((item) => item.marked) : tries),
     [tries, tryFilter],
@@ -250,16 +279,16 @@ export function ProjectDetailPage() {
           return
         }
 
-        const primaryGroup = project.groups?.[0]
+        const loadedGroups = toExperimentGroups(project.groups ?? [])
+        const nextActiveGroup = loadedGroups[0] ?? initialGroups[0]
 
         setProjectName(project.name)
         setProjectDescription(toProjectDescription(project))
-        setGroupName(primaryGroup?.name?.trim() || '기본 그룹')
-        setActiveGroupId(primaryGroup?.id || sampleGroupId)
-        const loadedTries = toTryRows(primaryGroup?.tries ?? [])
-        setTries(loadedTries)
-        setEditTryNumber(loadedTries[0] ? String(loadedTries[0].id) : '')
-        syncEditForm(loadedTries[0])
+        setGroups(loadedGroups.length > 0 ? loadedGroups : initialGroups)
+        setActiveGroupId(nextActiveGroup.id)
+        setEditTryNumber(nextActiveGroup.tries[0] ? String(nextActiveGroup.tries[0].id) : '')
+        setResultTryNumber('')
+        syncEditForm(nextActiveGroup.tries[0])
         setNotice('')
       } catch {
         if (!isActive) {
@@ -268,10 +297,10 @@ export function ProjectDetailPage() {
 
         setProjectName(sampleProjectName)
         setProjectDescription(sampleProjectDescription)
-        setGroupName(sampleGroupName)
+        setGroups(initialGroups)
         setActiveGroupId(sampleGroupId)
-        setTries(initialTries)
         setEditTryNumber(String(initialTries[0].id))
+        setResultTryNumber('')
         syncEditForm(initialTries[0])
         setNotice(fallbackNotice)
       }
@@ -284,6 +313,69 @@ export function ProjectDetailPage() {
     }
   }, [projectId, syncEditForm])
 
+  function updateActiveGroupTries(updater: (current: TryRow[]) => TryRow[]) {
+    setGroups((currentGroups) =>
+      currentGroups.map((group) =>
+        group.id === activeGroupId ? { ...group, tries: updater(group.tries) } : group,
+      ),
+    )
+  }
+
+  function selectGroup(group: ExperimentGroupRow) {
+    setActiveGroupId(group.id)
+    setTryFilter('all')
+    setEditTryNumber(group.tries[0] ? String(group.tries[0].id) : '')
+    setResultTryNumber('')
+    syncEditForm(group.tries[0])
+  }
+
+  async function createExperimentGroup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const name = groupTitle.trim()
+
+    if (!name || !projectId) {
+      return
+    }
+
+    const payload = {
+      name,
+      purpose: nullableText(groupPurpose),
+    }
+
+    setGroupTitle('')
+    setGroupPurpose('')
+
+    try {
+      const createdGroup = await apiPost<ApiExperimentGroup, typeof payload>(
+        `/projects/${projectId}/groups`,
+        payload,
+      )
+      const newGroup = toExperimentGroup(createdGroup)
+
+      setGroups((currentGroups) => [...currentGroups, newGroup])
+      setActiveGroupId(newGroup.id)
+      setEditTryNumber('')
+      setResultTryNumber('')
+      syncEditForm(undefined)
+      setNotice('')
+    } catch {
+      const newGroup: ExperimentGroupRow = {
+        id: `local-group-${Date.now()}`,
+        name,
+        purpose: groupPurpose.trim(),
+        tries: [],
+      }
+
+      setGroups((currentGroups) => [...currentGroups, newGroup])
+      setActiveGroupId(newGroup.id)
+      setEditTryNumber('')
+      setResultTryNumber('')
+      syncEditForm(undefined)
+      setNotice(localOnlyNotice)
+    }
+  }
+
   async function toggleMarked(id: number) {
     const targetTry = tries.find((item) => item.id === id)
 
@@ -292,7 +384,7 @@ export function ProjectDetailPage() {
     }
 
     if (targetTry.marked) {
-      setTries((current) =>
+      updateActiveGroupTries((current) =>
         current.map((item) => (item.id === id ? { ...item, marked: false } : item)),
       )
       setNotice(localOnlyNotice)
@@ -300,7 +392,7 @@ export function ProjectDetailPage() {
     }
 
     if (!targetTry.apiId) {
-      setTries((current) =>
+      updateActiveGroupTries((current) =>
         current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
       )
       setNotice(localOnlyNotice)
@@ -315,12 +407,12 @@ export function ProjectDetailPage() {
           reason: '의미 있는 시도로 마킹',
         },
       )
-      setTries((current) =>
+      updateActiveGroupTries((current) =>
         current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
       )
       setNotice('')
     } catch {
-      setTries((current) =>
+      updateActiveGroupTries((current) =>
         current.map((item) => (item.id === id ? { ...item, marked: true } : item)),
       )
       setNotice(localOnlyNotice)
@@ -342,7 +434,7 @@ export function ProjectDetailPage() {
         status: 'DRAFT',
       })
 
-      setTries((current) => [
+      updateActiveGroupTries((current) => [
         ...current,
         {
           id: createdTry.tryNumber,
@@ -358,7 +450,7 @@ export function ProjectDetailPage() {
       ])
       setNotice('')
     } catch {
-      setTries((current) => [
+      updateActiveGroupTries((current) => [
         ...current,
         {
           id: nextId,
@@ -377,7 +469,18 @@ export function ProjectDetailPage() {
 
   async function deleteTry(id: number) {
     const targetTry = tries.find((item) => item.id === id)
-    setTries((current) => current.filter((item) => item.id !== id))
+    const remainingTries = tries.filter((item) => item.id !== id)
+
+    updateActiveGroupTries(() => remainingTries)
+
+    if (String(id) === editTryNumber) {
+      setEditTryNumber(remainingTries[0] ? String(remainingTries[0].id) : '')
+      syncEditForm(remainingTries[0])
+    }
+
+    if (String(id) === resultTryNumber) {
+      setResultTryNumber('')
+    }
 
     if (!targetTry?.apiId) {
       setNotice(localOnlyNotice)
@@ -435,7 +538,7 @@ export function ProjectDetailPage() {
       return
     }
 
-    setTries((current) =>
+    updateActiveGroupTries((current) =>
       current.map((item) =>
         item.id === tryNumber ? { ...item, testResults: [result, ...item.testResults] } : item,
       ),
@@ -479,7 +582,7 @@ export function ProjectDetailPage() {
     }
 
     if (!selectedEditTry.apiId) {
-      setTries((current) =>
+      updateActiveGroupTries((current) =>
         current.map((item) => (item.id === selectedEditTry.id ? localUpdatedTry : item)),
       )
       setNotice(localOnlyNotice)
@@ -493,7 +596,7 @@ export function ProjectDetailPage() {
       )
       const [updatedRow] = toTryRows([updatedTry])
 
-      setTries((current) =>
+      updateActiveGroupTries((current) =>
         current.map((item) =>
           item.id === selectedEditTry.id
             ? {
@@ -506,7 +609,7 @@ export function ProjectDetailPage() {
       )
       setNotice('Try 배합 정보가 저장됐습니다.')
     } catch {
-      setTries((current) =>
+      updateActiveGroupTries((current) =>
         current.map((item) => (item.id === selectedEditTry.id ? localUpdatedTry : item)),
       )
       setNotice(localOnlyNotice)
@@ -525,9 +628,39 @@ export function ProjectDetailPage() {
 
       <section className="workflow-panel">
         <div className="panel-heading compact">
-          <h3>{groupName}</h3>
+          <h3>{activeGroup?.name ?? sampleGroupName}</h3>
           <span>{trySummary}</span>
         </div>
+        <div className="view-toggle" aria-label="실험 그룹 선택">
+          {groups.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              className={group.id === activeGroup?.id ? 'active' : ''}
+              aria-label={group.name}
+              aria-pressed={group.id === activeGroup?.id}
+              onClick={() => selectGroup(group)}
+            >
+              {group.name} · {group.tries.length}건
+            </button>
+          ))}
+        </div>
+        <form className="group-add-form" onSubmit={createExperimentGroup}>
+          <label>
+            실험 그룹명
+            <input value={groupTitle} onChange={(event) => setGroupTitle(event.target.value)} />
+          </label>
+          <label>
+            그룹 목적
+            <input
+              value={groupPurpose}
+              onChange={(event) => setGroupPurpose(event.target.value)}
+            />
+          </label>
+          <button type="submit" className="primary-dashboard-button">
+            그룹 추가
+          </button>
+        </form>
         <div className="view-toggle" aria-label="Try 보기 필터">
           <button
             type="button"
@@ -754,6 +887,19 @@ function toProjectDescription(project: ApiProject) {
     .join(' · ')
 
   return summary || sampleProjectDescription
+}
+
+function toExperimentGroups(groups: ApiExperimentGroup[]): ExperimentGroupRow[] {
+  return groups.map(toExperimentGroup)
+}
+
+function toExperimentGroup(group: ApiExperimentGroup): ExperimentGroupRow {
+  return {
+    id: group.id,
+    name: group.name.trim() || '기본 그룹',
+    purpose: group.purpose?.trim() ?? '',
+    tries: toTryRows(group.tries ?? []),
+  }
 }
 
 function toTryRows(tries: ApiFormulaTry[]): TryRow[] {
