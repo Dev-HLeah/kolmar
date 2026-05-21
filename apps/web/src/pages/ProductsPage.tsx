@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiPost } from '../api/client'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './WorkflowPages.css'
 
@@ -10,6 +11,18 @@ type ProductDraft = {
   function: string
   dosageForm: string
   ingredientCount: number
+}
+
+type ApiProduct = {
+  id: string
+  name: string
+  function?: string | null
+  dosageForm?: {
+    name?: string | null
+  } | null
+  formulas?: Array<{
+    ingredients?: unknown[]
+  }>
 }
 
 const initialRows: FormulaRow[] = [
@@ -26,6 +39,8 @@ const seededProducts: ProductDraft[] = [
   },
 ]
 
+const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
+
 export function ProductsPage() {
   const [name, setName] = useState('')
   const [functionalClaim, setFunctionalClaim] = useState('')
@@ -34,24 +49,71 @@ export function ProductsPage() {
   const [packaging, setPackaging] = useState('스틱 포장')
   const [rows, setRows] = useState(initialRows)
   const [products, setProducts] = useState<ProductDraft[]>(seededProducts)
+  const [notice, setNotice] = useState('')
 
   const ingredientCount = useMemo(
     () => rows.filter((row) => row.ingredientName.trim()).length,
     [rows],
   )
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const nextProduct: ProductDraft = {
+    const draftProduct: ProductDraft = {
       id: `draft-${products.length + 1}`,
       name: name.trim() || '제품명 미입력',
       function: functionalClaim.trim() || '기능성 미입력',
       dosageForm,
       ingredientCount,
     }
+    const ingredients = rows
+      .filter((row) => row.ingredientName.trim())
+      .map((row) => ({
+        ingredientName: row.ingredientName.trim(),
+        amount: nullableText(row.amount),
+        unit: nullableText(row.unit),
+        ratio: nullableText(row.ratio),
+        note: nullableText(row.note),
+      }))
 
-    setProducts((current) => [nextProduct, ...current])
+    try {
+      const createdProduct = await apiPost<
+        ApiProduct,
+        {
+          name: string
+          target: string | null
+          function: string | null
+          dosageFormName: string
+          packagingName: string
+          formulaVersion: string
+          ingredients: typeof ingredients
+        }
+      >('/products', {
+        name: draftProduct.name,
+        target: nullableText(target),
+        function: nullableText(functionalClaim),
+        dosageFormName: dosageForm,
+        packagingName: packaging,
+        formulaVersion: 'v1',
+        ingredients,
+      })
+
+      const createdFormula = createdProduct.formulas?.[0]
+      const nextProduct: ProductDraft = {
+        id: createdProduct.id,
+        name: createdProduct.name,
+        function: createdProduct.function?.trim() || draftProduct.function,
+        dosageForm: createdProduct.dosageForm?.name?.trim() || draftProduct.dosageForm,
+        ingredientCount: createdFormula?.ingredients?.length ?? draftProduct.ingredientCount,
+      }
+
+      setProducts((current) => [nextProduct, ...current])
+      setNotice('')
+    } catch {
+      setProducts((current) => [draftProduct, ...current])
+      setNotice(localOnlyNotice)
+    }
+
     setName('')
     setFunctionalClaim('')
     setTarget('')
@@ -109,6 +171,7 @@ export function ProductsPage() {
             </label>
           </div>
           <FormulaInputTable rows={rows} onChange={setRows} />
+          {notice ? <p className="local-notice">{notice}</p> : null}
           <div className="form-actions">
             <span>{target || packaging}</span>
             <button type="submit" className="primary-dashboard-button">
@@ -150,4 +213,9 @@ export function ProductsPage() {
       </section>
     </div>
   )
+}
+
+function nullableText(value?: string | null) {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
 }
