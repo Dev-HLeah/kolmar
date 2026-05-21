@@ -2,17 +2,21 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiPost } from '../api/client'
+import { apiGet, apiPost } from '../api/client'
 import { DashboardPage } from './DashboardPage'
 
 vi.mock('../api/client', () => ({
+  apiGet: vi.fn(),
   apiPost: vi.fn(),
 }))
 
+const apiGetMock = vi.mocked(apiGet)
 const apiPostMock = vi.mocked(apiPost)
 
 describe('DashboardPage', () => {
   beforeEach(() => {
+    apiGetMock.mockReset()
+    apiGetMock.mockResolvedValue([])
     apiPostMock.mockReset()
   })
 
@@ -23,6 +27,49 @@ describe('DashboardPage', () => {
       </MemoryRouter>,
     )
   }
+
+  it('loads workflow metrics from registered products projects and import jobs', async () => {
+    apiGetMock.mockImplementation(async (path) => {
+      if (path === '/products') {
+        return [{ id: 'product-1' }, { id: 'product-2' }]
+      }
+
+      if (path === '/projects') {
+        return [
+          {
+            id: 'project-1',
+            groups: [{ tries: [{ id: 'try-1' }, { id: 'try-2' }] }],
+          },
+          {
+            id: 'project-2',
+            groups: [{ tries: [{ id: 'try-3' }] }],
+          },
+        ]
+      }
+
+      if (path === '/evidence/import-jobs') {
+        return [
+          {
+            id: 'job-1',
+            rawRecords: [{ id: 'record-1' }, { id: 'record-2' }],
+          },
+          {
+            id: 'job-2',
+            rawRecords: [{ id: 'record-3' }],
+          },
+        ]
+      }
+
+      return []
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByRole('figure', { name: '등록 제품 2' })).toBeInTheDocument()
+    expect(screen.getByRole('figure', { name: '진행 프로젝트 2' })).toBeInTheDocument()
+    expect(screen.getByRole('figure', { name: '계획 Try 3' })).toBeInTheDocument()
+    expect(screen.getByRole('figure', { name: '근거 자료 3' })).toBeInTheDocument()
+  })
 
   it('requests draft try recommendations from formula inputs', async () => {
     const user = userEvent.setup()

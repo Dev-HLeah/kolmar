@@ -1,19 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { apiPost } from '../api/client'
+import { apiGet, apiPost } from '../api/client'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './DashboardPage.css'
 
 const initialRows: FormulaRow[] = [
   { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
   { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
-]
-
-const metrics = [
-  { label: '등록 제품', value: '0', tone: 'neutral' },
-  { label: '진행 프로젝트', value: '0', tone: 'neutral' },
-  { label: '계획 Try', value: '0', tone: 'neutral' },
-  { label: '근거 자료', value: '0', tone: 'neutral' },
 ]
 
 const kolmarForms = [
@@ -65,10 +58,34 @@ type FormulaIngredientInput = {
   note: string | null
 }
 
+type WorkflowMetrics = {
+  productCount: number
+  projectCount: number
+  tryCount: number
+  evidenceCount: number
+}
+
+type ApiProjectSummary = {
+  groups?: Array<{
+    tries?: unknown[]
+  }>
+}
+
+type ApiImportJobSummary = {
+  rawRecords?: unknown[]
+}
+
 const severityLabels: Record<SafetySignal['severity'], string> = {
   warning: '강한 주의',
   caution: '주의',
   info: '검토',
+}
+
+const emptyWorkflowMetrics: WorkflowMetrics = {
+  productCount: 0,
+  projectCount: 0,
+  tryCount: 0,
+  evidenceCount: 0,
 }
 
 export function DashboardPage() {
@@ -76,8 +93,39 @@ export function DashboardPage() {
   const [groupName, setGroupName] = useState('')
   const [targetFunction, setTargetFunction] = useState('')
   const [dosageForm, setDosageForm] = useState('tablet')
+  const [workflowMetrics, setWorkflowMetrics] = useState(emptyWorkflowMetrics)
   const [recommendation, setRecommendation] = useState<DraftTryRecommendation | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const metrics = toMetricTiles(workflowMetrics)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadWorkflowMetrics() {
+      const [products, projects, importJobs] = await Promise.all([
+        apiGet<unknown[]>('/products').catch(() => []),
+        apiGet<ApiProjectSummary[]>('/projects').catch(() => []),
+        apiGet<ApiImportJobSummary[]>('/evidence/import-jobs').catch(() => []),
+      ])
+
+      if (!isActive) {
+        return
+      }
+
+      setWorkflowMetrics({
+        productCount: products.length,
+        projectCount: projects.length,
+        tryCount: countProjectTries(projects),
+        evidenceCount: countRawEvidenceRecords(importJobs),
+      })
+    }
+
+    void loadWorkflowMetrics()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   async function handleCreateDraftTries() {
     const payload = {
@@ -128,7 +176,11 @@ export function DashboardPage() {
 
       <section className="metric-grid" aria-label="업무 현황">
         {metrics.map((metric) => (
-          <figure className="metric-tile" key={metric.label}>
+          <figure
+            aria-label={`${metric.label} ${metric.value}`}
+            className="metric-tile"
+            key={metric.label}
+          >
             <figcaption>{metric.label}</figcaption>
             <strong>{metric.value}</strong>
           </figure>
@@ -272,6 +324,31 @@ export function DashboardPage() {
 function nullableText(value: string) {
   const normalized = value.trim()
   return normalized ? normalized : null
+}
+
+function toMetricTiles(metrics: WorkflowMetrics) {
+  return [
+    { label: '등록 제품', value: String(metrics.productCount) },
+    { label: '진행 프로젝트', value: String(metrics.projectCount) },
+    { label: '계획 Try', value: String(metrics.tryCount) },
+    { label: '근거 자료', value: String(metrics.evidenceCount) },
+  ]
+}
+
+function countProjectTries(projects: ApiProjectSummary[]) {
+  return projects.reduce(
+    (projectTotal, project) =>
+      projectTotal +
+      (project.groups ?? []).reduce(
+        (groupTotal, group) => groupTotal + (group.tries?.length ?? 0),
+        0,
+      ),
+    0,
+  )
+}
+
+function countRawEvidenceRecords(importJobs: ApiImportJobSummary[]) {
+  return importJobs.reduce((total, job) => total + (job.rawRecords?.length ?? 0), 0)
 }
 
 function createLocalRecommendation(
