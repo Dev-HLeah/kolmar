@@ -274,6 +274,32 @@ export class ProjectsService {
     return mark;
   }
 
+  async deleteTryMarks(tryId: string) {
+    const result = await this.prisma.tryMark.deleteMany({
+      where: {
+        tryId,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'TRY_MARK_DELETED',
+        targetType: 'FormulaTry',
+        targetId: tryId,
+        summary: `try 마킹 해제: ${tryId}`,
+        metadata: {
+          tryId,
+          deletedCount: result.count,
+        },
+      },
+    });
+
+    return {
+      tryId,
+      deletedCount: result.count,
+    };
+  }
+
   async deleteFormulaTry(tryId: string) {
     const deletedTry = await this.prisma.formulaTry.delete({
       where: {

@@ -480,12 +480,29 @@ export function ProjectDetailPage() {
     }
 
     if (targetTry.marked) {
-      updateActiveGroupTries((current) =>
-        current.map((item) =>
-          item.id === id ? { ...item, marked: false, mark: undefined } : item,
-        ),
-      )
-      setNotice(localOnlyNotice)
+      if (!targetTry.apiId) {
+        updateActiveGroupTries((current) =>
+          current.map((item) =>
+            item.id === id ? { ...item, marked: false, mark: undefined } : item,
+          ),
+        )
+        setNotice(localOnlyNotice)
+        return
+      }
+
+      try {
+        await apiDelete<{ tryId: string; deletedCount: number }>(
+          `/projects/tries/${targetTry.apiId}/marks`,
+        )
+        updateActiveGroupTries((current) =>
+          current.map((item) =>
+            item.id === id ? { ...item, marked: false, mark: undefined } : item,
+          ),
+        )
+        setNotice('')
+      } catch {
+        setNotice(localOnlyNotice)
+      }
       return
     }
 
@@ -497,7 +514,9 @@ export function ProjectDetailPage() {
 
     if (!targetTry.apiId) {
       updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === id ? { ...item, marked: true, mark: localMark } : item)),
+        current.map((item) =>
+          item.id === id ? { ...item, marked: true, mark: localMark } : item,
+        ),
       )
       setMarkReason('')
       setNotice(localOnlyNotice)

@@ -5,8 +5,10 @@ import { ProjectsService } from './projects.service';
 
 describe('ProjectsController', () => {
   const projectsService: {
+    deleteTryMarks: jest.Mock;
     updateFormulaTry: jest.Mock;
   } = {
+    deleteTryMarks: jest.fn(),
     updateFormulaTry: jest.fn(),
   };
 
@@ -40,6 +42,29 @@ describe('ProjectsController', () => {
     const handler = Object.getOwnPropertyDescriptor(
       ProjectsController.prototype,
       'updateFormulaTry',
+    )?.value;
+
+    expect(Reflect.getMetadata(REQUIRED_ROLES_KEY, handler)).toEqual([
+      UserRole.Admin,
+      UserRole.Researcher,
+    ]);
+  });
+
+  it('deletes try marks through the service', async () => {
+    const deletedMarks = { tryId: 'try-1', deletedCount: 1 };
+    projectsService.deleteTryMarks.mockResolvedValue(deletedMarks);
+
+    await expect(controller.deleteTryMarks('try-1')).resolves.toBe(
+      deletedMarks,
+    );
+
+    expect(projectsService.deleteTryMarks).toHaveBeenCalledWith('try-1');
+  });
+
+  it('requires admin or researcher role for try mark deletion', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      ProjectsController.prototype,
+      'deleteTryMarks',
     )?.value;
 
     expect(Reflect.getMetadata(REQUIRED_ROLES_KEY, handler)).toEqual([

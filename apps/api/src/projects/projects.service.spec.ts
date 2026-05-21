@@ -24,6 +24,7 @@ describe('ProjectsService', () => {
     };
     tryMark: {
       create: jest.Mock;
+      deleteMany: jest.Mock;
     };
     auditLog: {
       create: jest.Mock;
@@ -49,6 +50,7 @@ describe('ProjectsService', () => {
     },
     tryMark: {
       create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     auditLog: {
       create: jest.fn(),
@@ -359,5 +361,33 @@ describe('ProjectsService', () => {
         include: expect.any(Object),
       }),
     );
+  });
+
+  it('removes meaningful try marks and records an audit log', async () => {
+    prisma.tryMark.deleteMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.deleteTryMarks('try-1');
+
+    expect(result).toEqual({
+      tryId: 'try-1',
+      deletedCount: 1,
+    });
+    expect(prisma.tryMark.deleteMany).toHaveBeenCalledWith({
+      where: {
+        tryId: 'try-1',
+      },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'TRY_MARK_DELETED',
+        targetType: 'FormulaTry',
+        targetId: 'try-1',
+        summary: 'try 마킹 해제: try-1',
+        metadata: {
+          tryId: 'try-1',
+          deletedCount: 1,
+        },
+      },
+    });
   });
 });

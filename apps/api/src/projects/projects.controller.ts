@@ -84,6 +84,12 @@ export class ProjectsController {
     return this.projectsService.createTryMark(tryId, dto);
   }
 
+  @Delete('tries/:tryId/marks')
+  @RequireRoles(UserRole.Admin, UserRole.Researcher)
+  deleteTryMarks(@Param('tryId') tryId: string) {
+    return this.projectsService.deleteTryMarks(tryId);
+  }
+
   @Delete('tries/:tryId')
   @RequireRoles(UserRole.Admin, UserRole.Researcher)
   deleteFormulaTry(@Param('tryId') tryId: string) {

@@ -325,6 +325,26 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('API 연결 실패로 로컬 화면에만 반영됐습니다.')).toBeInTheDocument()
   })
 
+  it('removes an API-backed meaningful try mark through the API', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+    apiDeleteMock.mockResolvedValueOnce({ tryId: 'api-try-2', deletedCount: 1 })
+
+    renderProjectDetail()
+
+    await findApiCandidateRow()
+    await user.click(screen.getByRole('button', { name: 'try#2 마킹' }))
+
+    expect(apiDeleteMock).toHaveBeenCalledWith('/projects/tries/api-try-2/marks')
+    expect(screen.getByText('의미 있는 Try 0건')).toBeInTheDocument()
+    expect(screen.getByText('프로젝트에 마킹된 Try 없음')).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', {
+        name: 'try#2 API 후보 후보 일반 try#2 마킹 try#2 삭제',
+      }),
+    ).toBeInTheDocument()
+  })
+
   it('lets researchers add and delete tries manually', async () => {
     const user = userEvent.setup()
     mockProjectDetail()
