@@ -226,6 +226,11 @@
   background: var(--surface-muted);
 }
 
+.formula-summary .summary-hint {
+  color: var(--text-muted);
+  background: #ffffff;
+}
+
 .formula-summary strong {
   border-color: #f0b7b7;
   color: var(--danger);

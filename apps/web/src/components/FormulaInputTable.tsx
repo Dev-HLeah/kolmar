@@ -500,6 +500,9 @@ export function FormulaInputTable({ rows, onChange }: Props) {
         >
           함량 기준 비율 계산
         </button>
+        {formulaSummary.ratioCalculationHint ? (
+          <span className="summary-hint">{formulaSummary.ratioCalculationHint}</span>
+        ) : null}
         {formulaSummary.isRatioOverLimit ? (
           <strong>비율 합계가 100%를 초과했습니다.</strong>
         ) : null}
@@ -568,6 +571,7 @@ function compactRecentIngredients(ingredients: string[]) {
 function getFormulaSummary(rows: FormulaRow[]) {
   const amountTotals = new Map<string, number>()
   let totalRatio = 0
+  const ratioBasis = getRatioCalculationBasis(rows)
 
   rows.forEach((row) => {
     const amount = parseFormulaNumber(row.amount)
@@ -589,7 +593,8 @@ function getFormulaSummary(rows: FormulaRow[]) {
     amountLabel: formatAmountTotals(amountTotals),
     ratioLabel: `${formatSummaryNumber(totalRatio)}%`,
     isRatioOverLimit: totalRatio > 100,
-    canCalculateRatio: getRatioCalculationBasis(rows) !== null,
+    canCalculateRatio: ratioBasis !== null,
+    ratioCalculationHint: ratioBasis ? null : getRatioCalculationHint(rows),
   }
 }
 
@@ -611,12 +616,7 @@ function parseFormulaNumber(value: string) {
 }
 
 function getRatioCalculationBasis(rows: FormulaRow[]) {
-  const amountRows = rows
-    .map((row) => ({
-      amount: parseFormulaNumber(row.amount),
-      unit: normalizeUnit(row.unit, 'mg'),
-    }))
-    .filter((row): row is { amount: number; unit: string } => row.amount !== null)
+  const amountRows = getAmountRows(rows)
 
   if (!amountRows.length) {
     return null
@@ -633,6 +633,29 @@ function getRatioCalculationBasis(rows: FormulaRow[]) {
     totalAmount,
     unit: amountRows[0].unit,
   }
+}
+
+function getRatioCalculationHint(rows: FormulaRow[]) {
+  const amountRows = getAmountRows(rows)
+
+  if (!amountRows.length) {
+    return '함량을 입력하면 비율을 계산할 수 있습니다.'
+  }
+
+  if (new Set(amountRows.map((row) => row.unit)).size > 1) {
+    return '단위가 섞여 있어 비율 계산 전 단위 통일이 필요합니다.'
+  }
+
+  return null
+}
+
+function getAmountRows(rows: FormulaRow[]) {
+  return rows
+    .map((row) => ({
+      amount: parseFormulaNumber(row.amount),
+      unit: normalizeUnit(row.unit, 'mg'),
+    }))
+    .filter((row): row is { amount: number; unit: string } => row.amount !== null)
 }
 
 function formatAmountTotals(amountTotals: Map<string, number>) {

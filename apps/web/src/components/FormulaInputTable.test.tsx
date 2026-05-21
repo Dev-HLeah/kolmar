@@ -246,4 +246,35 @@ describe('FormulaInputTable', () => {
     expect(screen.getByLabelText('비율 2')).toHaveValue('66.666667')
     expect(screen.getByText('비율 합계 100%')).toBeInTheDocument()
   })
+
+  it('explains that ratio calculation needs amounts', () => {
+    render(
+      <FormulaInputTable
+        rows={[{ ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' }]}
+        onChange={() => undefined}
+      />,
+    )
+
+    const summary = screen.getByRole('region', { name: '배합 합계' })
+
+    expect(within(summary).getByRole('button', { name: '함량 기준 비율 계산' })).toBeDisabled()
+    expect(within(summary).getByText('함량을 입력하면 비율을 계산할 수 있습니다.')).toBeInTheDocument()
+  })
+
+  it('explains that ratio calculation needs one amount unit', () => {
+    render(
+      <FormulaInputTable
+        rows={[
+          { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '', note: '' },
+          { ingredientName: '아연', amount: '1', unit: 'g', ratio: '', note: '' },
+        ]}
+        onChange={() => undefined}
+      />,
+    )
+
+    const summary = screen.getByRole('region', { name: '배합 합계' })
+
+    expect(within(summary).getByRole('button', { name: '함량 기준 비율 계산' })).toBeDisabled()
+    expect(within(summary).getByText('단위가 섞여 있어 비율 계산 전 단위 통일이 필요합니다.')).toBeInTheDocument()
+  })
 })
