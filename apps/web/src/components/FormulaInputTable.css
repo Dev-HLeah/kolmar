@@ -200,7 +200,8 @@
 }
 
 .formula-summary span,
-.formula-summary strong {
+.formula-summary strong,
+.summary-action-button {
   min-height: 30px;
   display: inline-flex;
   align-items: center;
@@ -211,6 +212,18 @@
   background: var(--surface-muted);
   font-size: 12px;
   font-weight: 700;
+}
+
+.summary-action-button {
+  cursor: pointer;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.summary-action-button:disabled {
+  cursor: not-allowed;
+  color: #98a29d;
+  background: var(--surface-muted);
 }
 
 .formula-summary strong {

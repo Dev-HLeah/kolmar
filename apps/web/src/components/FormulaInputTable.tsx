@@ -224,6 +224,29 @@ export function FormulaInputTable({ rows, onChange }: Props) {
     setActiveSuggestionRow(null)
   }
 
+  function calculateRatiosFromAmounts() {
+    const ratioBasis = getRatioCalculationBasis(rows)
+
+    if (!ratioBasis) {
+      return
+    }
+
+    onChange(
+      rows.map((row) => {
+        const amount = parseFormulaNumber(row.amount)
+
+        if (amount === null || normalizeUnit(row.unit, 'mg') !== ratioBasis.unit) {
+          return row
+        }
+
+        return {
+          ...row,
+          ratio: formatRatio((amount / ratioBasis.totalAmount) * 100),
+        }
+      }),
+    )
+  }
+
   return (
     <div className="formula-input">
       <div className="formula-toolbar">
@@ -469,6 +492,14 @@ export function FormulaInputTable({ rows, onChange }: Props) {
         <span>입력 원료 {formulaSummary.rowCount}개</span>
         <span>함량 합계 {formulaSummary.amountLabel}</span>
         <span>비율 합계 {formulaSummary.ratioLabel}</span>
+        <button
+          type="button"
+          className="summary-action-button"
+          disabled={!formulaSummary.canCalculateRatio}
+          onClick={calculateRatiosFromAmounts}
+        >
+          함량 기준 비율 계산
+        </button>
         {formulaSummary.isRatioOverLimit ? (
           <strong>비율 합계가 100%를 초과했습니다.</strong>
         ) : null}
@@ -558,6 +589,7 @@ function getFormulaSummary(rows: FormulaRow[]) {
     amountLabel: formatAmountTotals(amountTotals),
     ratioLabel: `${formatSummaryNumber(totalRatio)}%`,
     isRatioOverLimit: totalRatio > 100,
+    canCalculateRatio: getRatioCalculationBasis(rows) !== null,
   }
 }
 
@@ -578,6 +610,31 @@ function parseFormulaNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function getRatioCalculationBasis(rows: FormulaRow[]) {
+  const amountRows = rows
+    .map((row) => ({
+      amount: parseFormulaNumber(row.amount),
+      unit: normalizeUnit(row.unit, 'mg'),
+    }))
+    .filter((row): row is { amount: number; unit: string } => row.amount !== null)
+
+  if (!amountRows.length) {
+    return null
+  }
+
+  const units = new Set(amountRows.map((row) => row.unit))
+  const totalAmount = amountRows.reduce((total, row) => total + row.amount, 0)
+
+  if (units.size !== 1 || totalAmount <= 0) {
+    return null
+  }
+
+  return {
+    totalAmount,
+    unit: amountRows[0].unit,
+  }
+}
+
 function formatAmountTotals(amountTotals: Map<string, number>) {
   if (!amountTotals.size) {
     return '0'
@@ -592,6 +649,10 @@ function formatSummaryNumber(value: number) {
   return Number(value.toFixed(6)).toLocaleString('ko-KR', {
     maximumFractionDigits: 6,
   })
+}
+
+function formatRatio(value: number) {
+  return Number(value.toFixed(6)).toString()
 }
 
 function getIngredientSuggestions(query: string, recentIngredients: string[]) {

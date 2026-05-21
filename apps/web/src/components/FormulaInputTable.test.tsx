@@ -225,4 +225,25 @@ describe('FormulaInputTable', () => {
     expect(within(summary).getByText('함량 합계 0')).toBeInTheDocument()
     expect(within(summary).getByText('비율 합계 0%')).toBeInTheDocument()
   })
+
+  it('calculates ratios from same-unit amounts', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '', note: '' },
+        { ingredientName: '아연', amount: '1000', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    await user.click(screen.getByRole('button', { name: '함량 기준 비율 계산' }))
+
+    expect(screen.getByLabelText('비율 1')).toHaveValue('33.333333')
+    expect(screen.getByLabelText('비율 2')).toHaveValue('66.666667')
+    expect(screen.getByText('비율 합계 100%')).toBeInTheDocument()
+  })
 })
