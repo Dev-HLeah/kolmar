@@ -18,12 +18,30 @@ const initialTries: TryRow[] = [
 
 export function ProjectDetailPage() {
   const [tries, setTries] = useState(initialTries)
+  const [tryTitle, setTryTitle] = useState('')
   const markedCount = useMemo(() => tries.filter((item) => item.marked).length, [tries])
+  const maxTryNumber = useMemo(
+    () => tries.reduce((highest, item) => Math.max(highest, item.id), 0),
+    [tries],
+  )
+  const trySummary = tries.length > 0 ? `try#1-${maxTryNumber}` : 'try 없음'
 
   function toggleMarked(id: number) {
     setTries((current) =>
       current.map((item) => (item.id === id ? { ...item, marked: !item.marked } : item)),
     )
+  }
+
+  function addTry() {
+    const nextId = maxTryNumber + 1
+    const title = tryTitle.trim() || `try#${nextId}`
+
+    setTries((current) => [...current, { id: nextId, title, marked: false }])
+    setTryTitle('')
+  }
+
+  function deleteTry(id: number) {
+    setTries((current) => current.filter((item) => item.id !== id))
   }
 
   return (
@@ -39,7 +57,16 @@ export function ProjectDetailPage() {
       <section className="workflow-panel">
         <div className="panel-heading compact">
           <h3>신물 억제 그룹</h3>
-          <span>try#1-6</span>
+          <span>{trySummary}</span>
+        </div>
+        <div className="try-add-form">
+          <label>
+            Try 목적
+            <input value={tryTitle} onChange={(event) => setTryTitle(event.target.value)} />
+          </label>
+          <button type="button" className="primary-dashboard-button" onClick={addTry}>
+            Try 추가
+          </button>
         </div>
         <div className="workflow-table-wrap">
           <table className="workflow-table">
@@ -58,13 +85,22 @@ export function ProjectDetailPage() {
                   <td>{item.title}</td>
                   <td>{item.marked ? '마킹됨' : '일반'}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="text-action"
-                      onClick={() => toggleMarked(item.id)}
-                    >
-                      try#{item.id} 마킹
-                    </button>
+                    <div className="row-actions">
+                      <button
+                        type="button"
+                        className="text-action"
+                        onClick={() => toggleMarked(item.id)}
+                      >
+                        try#{item.id} 마킹
+                      </button>
+                      <button
+                        type="button"
+                        className="text-action danger"
+                        onClick={() => deleteTry(item.id)}
+                      >
+                        try#{item.id} 삭제
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

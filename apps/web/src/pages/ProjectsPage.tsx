@@ -25,7 +25,6 @@ export function ProjectsPage() {
   const [name, setName] = useState('')
   const [source, setSource] = useState('콜마 고형제 기준 처방')
   const [groupName, setGroupName] = useState('신물 억제')
-  const [tryCount, setTryCount] = useState('100')
   const [projects, setProjects] = useState(seededProjects)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -37,7 +36,7 @@ export function ProjectsPage() {
         name: name.trim() || '신규 프로젝트',
         source,
         groupName: groupName.trim() || '기본 그룹',
-        tryCount: Number.parseInt(tryCount, 10) || 0,
+        tryCount: 0,
       },
       ...current,
     ])
@@ -75,17 +74,9 @@ export function ProjectsPage() {
               그룹명
               <input value={groupName} onChange={(event) => setGroupName(event.target.value)} />
             </label>
-            <label>
-              Try 생성 개수
-              <input
-                inputMode="numeric"
-                value={tryCount}
-                onChange={(event) => setTryCount(event.target.value)}
-              />
-            </label>
           </div>
           <div className="form-actions">
-            <span>관리자/연구원 입력 가능</span>
+            <span>관리자/연구원</span>
             <button type="submit" className="primary-dashboard-button">
               프로젝트 생성
             </button>

@@ -88,6 +88,32 @@
   text-decoration: none;
 }
 
+.try-add-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 0 16px 16px;
+}
+
+.try-add-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.try-add-form input {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
 .status-pill {
   min-height: 34px;
   display: inline-flex;
@@ -109,6 +135,16 @@
   font-weight: 700;
 }
 
+.text-action.danger {
+  color: var(--danger);
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 980px) {
   .workflow-grid {
     grid-template-columns: 1fr;
@@ -123,5 +159,9 @@
   .form-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .try-add-form {
+    grid-template-columns: 1fr;
   }
 }
