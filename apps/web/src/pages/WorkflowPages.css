@@ -138,6 +138,37 @@
   background: #ffffff;
 }
 
+.test-result-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 0 16px 16px;
+}
+
+.test-result-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.test-result-form input,
+.test-result-form select {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.test-result-form .wide-field {
+  grid-column: span 2;
+}
+
 .local-notice {
   margin: 0 16px 12px;
   padding: 10px 12px;
@@ -198,5 +229,13 @@
 
   .try-add-form {
     grid-template-columns: 1fr;
+  }
+
+  .test-result-form {
+    grid-template-columns: 1fr;
+  }
+
+  .test-result-form .wide-field {
+    grid-column: auto;
   }
 }

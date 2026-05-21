@@ -172,6 +172,49 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('try#1-2')).toBeInTheDocument()
   })
 
+  it('registers optional test results for a selected try', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+    apiPostMock.mockResolvedValueOnce({
+      id: 'result-1',
+      tryId: 'api-try-1',
+    })
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+
+    await user.selectOptions(screen.getByLabelText('결과 등록 Try'), '1')
+    await user.type(screen.getByLabelText('측정 항목'), '붕해 시간')
+    await user.type(screen.getByLabelText('측정값'), '12')
+    await user.type(screen.getByLabelText('판정'), '적합')
+    await user.click(screen.getByRole('button', { name: '테스트 결과 등록' }))
+
+    expect(apiPostMock).toHaveBeenCalledWith('/projects/tries/api-try-1/test-results', {
+      testPurpose: null,
+      measuredItem: '붕해 시간',
+      measuredValue: '12',
+      unit: null,
+      judgment: '적합',
+      memo: null,
+    })
+    expect(screen.getByText('테스트 결과가 등록됐습니다.')).toBeInTheDocument()
+  })
+
+  it('keeps test result entry local when the API is unavailable', async () => {
+    const user = userEvent.setup()
+    mockProjectDetail()
+    apiPostMock.mockRejectedValueOnce(new Error('API offline'))
+
+    renderProjectDetail()
+
+    await screen.findByText('API 후보')
+    await user.type(screen.getByLabelText('측정 항목'), '색')
+    await user.click(screen.getByRole('button', { name: '테스트 결과 등록' }))
+
+    expect(screen.getByText('API 연결 실패로 로컬 화면에만 반영됐습니다.')).toBeInTheDocument()
+  })
+
   it('keeps local try changes visible when the API is unavailable', async () => {
     const user = userEvent.setup()
     apiGetMock.mockRejectedValueOnce(new Error('API offline'))

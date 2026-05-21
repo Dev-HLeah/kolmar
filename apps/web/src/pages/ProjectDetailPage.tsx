@@ -1,3 +1,4 @@
+import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { apiDelete, apiGet, apiPost } from '../api/client'
@@ -20,6 +21,11 @@ type ApiFormulaTry = {
 type ApiTryMark = {
   id: string
   type: string
+}
+
+type ApiTestResult = {
+  id: string
+  tryId: string
 }
 
 type ApiExperimentGroup = {
@@ -63,11 +69,24 @@ export function ProjectDetailPage() {
   const [tries, setTries] = useState(initialTries)
   const [tryFilter, setTryFilter] = useState<'all' | 'marked'>('all')
   const [tryTitle, setTryTitle] = useState('')
+  const [resultTryNumber, setResultTryNumber] = useState('')
+  const [testPurpose, setTestPurpose] = useState('')
+  const [measuredItem, setMeasuredItem] = useState('')
+  const [measuredValue, setMeasuredValue] = useState('')
+  const [unit, setUnit] = useState('')
+  const [judgment, setJudgment] = useState('')
+  const [resultMemo, setResultMemo] = useState('')
   const [notice, setNotice] = useState('')
   const markedCount = useMemo(() => tries.filter((item) => item.marked).length, [tries])
   const visibleTries = useMemo(
     () => (tryFilter === 'marked' ? tries.filter((item) => item.marked) : tries),
     [tries, tryFilter],
+  )
+  const effectiveResultTryNumber =
+    tries.find((item) => String(item.id) === resultTryNumber) ?? tries[0]
+  const selectedResultTry = useMemo(
+    () => tries.find((item) => item.id === effectiveResultTryNumber?.id),
+    [effectiveResultTryNumber, tries],
   )
   const maxTryNumber = useMemo(
     () => tries.reduce((highest, item) => Math.max(highest, item.id), 0),
@@ -210,6 +229,46 @@ export function ProjectDetailPage() {
     }
   }
 
+  async function registerTestResult(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!selectedResultTry?.apiId) {
+      setNotice(localOnlyNotice)
+      return
+    }
+
+    try {
+      await apiPost<
+        ApiTestResult,
+        {
+          testPurpose: string | null
+          measuredItem: string | null
+          measuredValue: string | null
+          unit: string | null
+          judgment: string | null
+          memo: string | null
+        }
+      >(`/projects/tries/${selectedResultTry.apiId}/test-results`, {
+        testPurpose: nullableText(testPurpose),
+        measuredItem: nullableText(measuredItem),
+        measuredValue: nullableText(measuredValue),
+        unit: nullableText(unit),
+        judgment: nullableText(judgment),
+        memo: nullableText(resultMemo),
+      })
+
+      setTestPurpose('')
+      setMeasuredItem('')
+      setMeasuredValue('')
+      setUnit('')
+      setJudgment('')
+      setResultMemo('')
+      setNotice('테스트 결과가 등록됐습니다.')
+    } catch {
+      setNotice(localOnlyNotice)
+    }
+  }
+
   return (
     <div className="workflow-page">
       <section className="page-heading">
@@ -252,6 +311,52 @@ export function ProjectDetailPage() {
             Try 추가
           </button>
         </div>
+        <form className="test-result-form" onSubmit={registerTestResult}>
+          <label>
+            결과 등록 Try
+            <select
+              value={effectiveResultTryNumber ? String(effectiveResultTryNumber.id) : ''}
+              onChange={(event) => setResultTryNumber(event.target.value)}
+            >
+              {tries.map((item) => (
+                <option key={item.id} value={String(item.id)}>
+                  try#{item.id} {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            시험 목적
+            <input value={testPurpose} onChange={(event) => setTestPurpose(event.target.value)} />
+          </label>
+          <label>
+            측정 항목
+            <input value={measuredItem} onChange={(event) => setMeasuredItem(event.target.value)} />
+          </label>
+          <label>
+            측정값
+            <input
+              inputMode="decimal"
+              value={measuredValue}
+              onChange={(event) => setMeasuredValue(event.target.value)}
+            />
+          </label>
+          <label>
+            단위
+            <input value={unit} onChange={(event) => setUnit(event.target.value)} />
+          </label>
+          <label>
+            판정
+            <input value={judgment} onChange={(event) => setJudgment(event.target.value)} />
+          </label>
+          <label className="wide-field">
+            메모
+            <input value={resultMemo} onChange={(event) => setResultMemo(event.target.value)} />
+          </label>
+          <button type="submit" className="primary-dashboard-button">
+            테스트 결과 등록
+          </button>
+        </form>
         {notice ? <p className="local-notice">{notice}</p> : null}
         <div className="workflow-table-wrap">
           <table className="workflow-table">
@@ -300,6 +405,11 @@ export function ProjectDetailPage() {
       </section>
     </div>
   )
+}
+
+function nullableText(value?: string | null) {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
 }
 
 function toProjectDescription(project: ApiProject) {
