@@ -17,6 +17,7 @@ describe('Evidence services', () => {
     },
     dataImportJob: {
       create: jest.fn(),
+      findMany: jest.fn(),
     },
   } as unknown as jest.Mocked<PrismaService>;
 
@@ -112,6 +113,36 @@ describe('Evidence services', () => {
       include: {
         rawRecords: true,
       },
+    });
+  });
+
+  it('lists import jobs with their raw records for status tracking', async () => {
+    const importJobs = [
+      {
+        id: 'job-1',
+        sourceName: 'MFDS OpenAPI',
+        status: 'IMPORTED',
+        rawRecords: [
+          {
+            id: 'record-1',
+            normalizedStatus: 'PENDING',
+          },
+        ],
+      },
+    ];
+    prisma.dataImportJob.findMany.mockResolvedValue(importJobs);
+
+    const result = await importJobsService.findImportJobs();
+
+    expect(result).toBe(importJobs);
+    expect(prisma.dataImportJob.findMany).toHaveBeenCalledWith({
+      orderBy: {
+        startedAt: 'desc',
+      },
+      include: {
+        rawRecords: true,
+      },
+      take: 20,
     });
   });
 });

@@ -46,8 +46,36 @@ type RegisteredEvidence = {
   grade: string
 }
 
+type JsonPayload =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonPayload[]
+  | {
+      [key: string]: JsonPayload
+    }
+
+type RawImportRecord = {
+  id?: string
+  externalId?: string | null
+  sourceUrl?: string | null
+  normalizedStatus?: string | null
+}
+
+type ImportJob = {
+  id: string
+  sourceName: string
+  status: string
+  startedAt?: string | null
+  finishedAt?: string | null
+  message?: string | null
+  rawRecords?: RawImportRecord[]
+}
+
 const fallbackNotice = 'API 연결 실패로 로컬 근거 후보를 표시합니다.'
 const registrationFallbackNotice = 'API 연결 실패로 로컬 근거 목록에만 반영됐습니다.'
+const importJobFallbackNotice = 'API 연결 실패로 로컬 수집 작업 목록에만 반영됐습니다.'
 
 export function KnowledgeSearchPage() {
   const location = useLocation()
@@ -66,6 +94,15 @@ export function KnowledgeSearchPage() {
   const [registeredEvidence, setRegisteredEvidence] = useState<RegisteredEvidence[]>([])
   const [registrationNotice, setRegistrationNotice] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
+  const [importJobs, setImportJobs] = useState<ImportJob[]>([])
+  const [importSourceName, setImportSourceName] = useState('')
+  const [importStatus, setImportStatus] = useState('IMPORTED')
+  const [importMessage, setImportMessage] = useState('')
+  const [externalId, setExternalId] = useState('')
+  const [rawSourceUrl, setRawSourceUrl] = useState('')
+  const [rawJson, setRawJson] = useState('')
+  const [importJobNotice, setImportJobNotice] = useState('')
+  const [isCreatingImportJob, setIsCreatingImportJob] = useState(false)
 
   const loadSearch = useCallback(async (nextQuery: string) => {
     const normalizedQuery = nextQuery.trim()
@@ -129,6 +166,34 @@ export function KnowledgeSearchPage() {
       isActive = false
     }
   }, [location.search])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadImportJobs() {
+      try {
+        const jobs = await apiGet<ImportJob[]>('/evidence/import-jobs')
+
+        if (!isActive) {
+          return
+        }
+
+        setImportJobs(jobs)
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setImportJobs([])
+      }
+    }
+
+    void loadImportJobs()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -214,6 +279,77 @@ export function KnowledgeSearchPage() {
     }
   }
 
+  async function handleCreateImportJob(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const normalizedSourceName = importSourceName.trim()
+
+    if (!normalizedSourceName) {
+      setImportJobNotice('수집 출처는 입력해야 합니다.')
+      return
+    }
+
+    const parsedRawPayload = parseOptionalJson(rawJson)
+
+    if (parsedRawPayload === invalidJsonPayload) {
+      setImportJobNotice('원본 JSON 형식이 올바르지 않습니다.')
+      return
+    }
+
+    const rawRecordFieldsEntered = Boolean(
+      externalId.trim() || rawSourceUrl.trim() || rawJson.trim(),
+    )
+    const records = rawRecordFieldsEntered
+      ? [
+          {
+            externalId: nullableText(externalId),
+            sourceUrl: nullableText(rawSourceUrl),
+            rawPayload: parsedRawPayload ?? {},
+          },
+        ]
+      : []
+    const payload = {
+      sourceName: normalizedSourceName,
+      status: importStatus,
+      message: nullableText(importMessage),
+      records,
+    }
+
+    setIsCreatingImportJob(true)
+
+    try {
+      const createdJob = await apiPost<ImportJob, typeof payload>(
+        '/evidence/import-jobs',
+        payload,
+      )
+
+      setImportJobs((current) => [createdJob, ...current])
+      setImportJobNotice('')
+      setImportSourceName('')
+      setImportMessage('')
+      setExternalId('')
+      setRawSourceUrl('')
+      setRawJson('')
+    } catch {
+      setImportJobs((current) => [
+        createLocalImportJob({
+          sourceName: normalizedSourceName,
+          status: importStatus,
+          message: nullableText(importMessage),
+          rawRecords: records.map((record) => ({
+            externalId: record.externalId,
+            sourceUrl: record.sourceUrl,
+            normalizedStatus: 'PENDING',
+          })),
+        }),
+        ...current,
+      ])
+      setImportJobNotice(importJobFallbackNotice)
+    } finally {
+      setIsCreatingImportJob(false)
+    }
+  }
+
   return (
     <div className="workflow-page knowledge-search-page">
       <section className="page-heading">
@@ -282,6 +418,101 @@ export function KnowledgeSearchPage() {
             ))}
           </div>
         ) : null}
+      </section>
+
+      <section className="workflow-panel">
+        <div className="panel-heading compact">
+          <h3>외부 데이터 수집</h3>
+          <span>OpenAPI 저장</span>
+        </div>
+        <form className="import-job-form" onSubmit={handleCreateImportJob}>
+          <label>
+            수집 출처
+            <input
+              value={importSourceName}
+              onChange={(event) => setImportSourceName(event.target.value)}
+              placeholder="예: MFDS OpenAPI, KIPRIS OpenAPI"
+            />
+          </label>
+          <label>
+            수집 상태
+            <select value={importStatus} onChange={(event) => setImportStatus(event.target.value)}>
+              <option value="IMPORTED">IMPORTED</option>
+              <option value="NORMALIZED">NORMALIZED</option>
+              <option value="FAILED">FAILED</option>
+            </select>
+          </label>
+          <label className="wide-field">
+            수집 메모
+            <input
+              value={importMessage}
+              onChange={(event) => setImportMessage(event.target.value)}
+              placeholder="예: 특허 원문 수집, 식약처 기준 갱신"
+            />
+          </label>
+          <label>
+            외부 ID
+            <input
+              value={externalId}
+              onChange={(event) => setExternalId(event.target.value)}
+              placeholder="예: PAT-001"
+            />
+          </label>
+          <label>
+            원본 URL
+            <input
+              value={rawSourceUrl}
+              onChange={(event) => setRawSourceUrl(event.target.value)}
+              placeholder="https://"
+            />
+          </label>
+          <label className="wide-field">
+            원본 JSON
+            <textarea
+              value={rawJson}
+              onChange={(event) => setRawJson(event.target.value)}
+              placeholder='{"ingredient":"비타민 C"}'
+            />
+          </label>
+          <div className="registration-actions">
+            <button type="submit" className="primary-dashboard-button" disabled={isCreatingImportJob}>
+              {isCreatingImportJob ? '등록 중' : '수집 작업 등록'}
+            </button>
+          </div>
+        </form>
+        {importJobNotice ? <p className="local-notice">{importJobNotice}</p> : null}
+      </section>
+
+      <section className="workflow-panel">
+        <div className="panel-heading compact">
+          <h3>수집 작업</h3>
+          <span>{importJobs.length}개</span>
+        </div>
+        {importJobs.length > 0 ? (
+          <div className="knowledge-result-list">
+            {importJobs.map((job) => (
+              <article className="knowledge-result-card" key={job.id}>
+                <div className="result-card-heading">
+                  <h3>{job.sourceName}</h3>
+                  <span>{job.status}</span>
+                </div>
+                {job.message ? <p>{job.message}</p> : null}
+                <dl>
+                  <div>
+                    <dt>원본</dt>
+                    <dd>원본 {job.rawRecords?.length ?? 0}건</dd>
+                  </div>
+                  <div>
+                    <dt>정규화</dt>
+                    <dd>{job.rawRecords?.[0]?.normalizedStatus ?? 'PENDING'}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-result">외부 데이터 수집 작업이 이 목록에 표시됩니다.</p>
+        )}
       </section>
 
       <section className="workflow-panel">
@@ -398,6 +629,22 @@ function nullableText(value: string) {
   return normalized ? normalized : null
 }
 
+const invalidJsonPayload = Symbol('invalid-json-payload')
+
+function parseOptionalJson(value: string): JsonPayload | typeof invalidJsonPayload | null {
+  const normalized = value.trim()
+
+  if (!normalized) {
+    return null
+  }
+
+  try {
+    return JSON.parse(normalized) as JsonPayload
+  } catch {
+    return invalidJsonPayload
+  }
+}
+
 function toRegisteredEvidence(
   item: EvidenceItem,
   source: EvidenceSource,
@@ -417,6 +664,14 @@ function toRegisteredEvidence(
 function createLocalRegisteredEvidence(input: Omit<RegisteredEvidence, 'id'>): RegisteredEvidence {
   return {
     id: `local-evidence-${Date.now()}`,
+    ...input,
+  }
+}
+
+function createLocalImportJob(input: Omit<ImportJob, 'id'>): ImportJob {
+  return {
+    id: `local-import-${Date.now()}`,
+    startedAt: new Date().toISOString(),
     ...input,
   }
 }

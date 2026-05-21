@@ -9,6 +9,18 @@ import {
 export class ImportJobsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  findImportJobs() {
+    return this.prisma.dataImportJob.findMany({
+      orderBy: {
+        startedAt: 'desc',
+      },
+      include: {
+        rawRecords: true,
+      },
+      take: 20,
+    });
+  }
+
   createImportJob(dto: CreateImportJobDto) {
     return this.prisma.dataImportJob.create({
       data: {

@@ -48,4 +48,9 @@ export class EvidenceController {
   createImportJob(@Body() dto: CreateImportJobDto) {
     return this.importJobsService.createImportJob(dto);
   }
+
+  @Get('import-jobs')
+  findImportJobs() {
+    return this.importJobsService.findImportJobs();
+  }
 }

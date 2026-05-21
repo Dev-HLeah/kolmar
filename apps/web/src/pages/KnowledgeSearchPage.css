@@ -24,14 +24,16 @@
   background: #ffffff;
 }
 
-.evidence-registration-form {
+.evidence-registration-form,
+.import-job-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 16px;
 }
 
-.evidence-registration-form label {
+.evidence-registration-form label,
+.import-job-form label {
   display: grid;
   gap: 6px;
   color: var(--text-muted);
@@ -40,17 +42,34 @@
 }
 
 .evidence-registration-form input,
-.evidence-registration-form select {
+.evidence-registration-form select,
+.import-job-form input,
+.import-job-form select,
+.import-job-form textarea {
   min-height: 38px;
   width: 100%;
-  padding: 0 10px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   color: var(--text);
   background: #ffffff;
 }
 
-.evidence-registration-form .wide-field {
+.evidence-registration-form input,
+.evidence-registration-form select,
+.import-job-form input,
+.import-job-form select {
+  padding: 0 10px;
+}
+
+.import-job-form textarea {
+  min-height: 88px;
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
+
+.evidence-registration-form .wide-field,
+.import-job-form .wide-field {
   grid-column: span 2;
 }
 
@@ -152,11 +171,13 @@
     grid-template-columns: 1fr;
   }
 
-  .evidence-registration-form {
+  .evidence-registration-form,
+  .import-job-form {
     grid-template-columns: 1fr;
   }
 
   .evidence-registration-form .wide-field,
+  .import-job-form .wide-field,
   .registration-actions {
     grid-column: auto;
   }
