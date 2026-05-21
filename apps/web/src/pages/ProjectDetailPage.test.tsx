@@ -27,7 +27,7 @@ function renderProjectDetail(projectId = 'project-api-1') {
   )
 }
 
-function mockProjectDetail() {
+function mockProjectDetail(options: { markSecondGroup?: boolean } = {}) {
   apiGetMock.mockResolvedValueOnce({
     id: 'project-api-1',
     name: 'API 신물 억제 개발',
@@ -97,11 +97,17 @@ function mockProjectDetail() {
             memo: '단맛 보완',
             ingredients: [],
             testResults: [],
-            marks: [],
+            marks: options.markSecondGroup ? [{ id: 'mark-10' }] : [],
           },
         ],
       },
     ],
+  })
+}
+
+function findApiCandidateRow() {
+  return screen.findByRole('row', {
+    name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제',
   })
 }
 
@@ -120,7 +126,7 @@ describe('ProjectDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'API 신물 억제 개발' })).toBeInTheDocument()
     expect(apiGetMock).toHaveBeenCalledWith('/projects/project-api-1')
-    expect(screen.getByText('API 신물 억제 그룹')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'API 신물 억제 그룹' })).toBeInTheDocument()
     expect(screen.getByText('의미 있는 Try 1건')).toBeInTheDocument()
     expect(
       screen.getByRole('row', { name: 'try#2 API 후보 후보 마킹됨 try#2 마킹 try#2 삭제' }),
@@ -133,7 +139,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
     await user.click(screen.getByRole('button', { name: '의미 있는 Try만 보기' }))
 
     expect(
@@ -160,7 +166,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
     await user.selectOptions(screen.getByLabelText('Try 상태 필터'), 'CANDIDATE')
 
     expect(
@@ -173,13 +179,30 @@ describe('ProjectDetailPage', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('collects meaningful tries across every experiment group', async () => {
+    mockProjectDetail({ markSecondGroup: true })
+
+    renderProjectDetail()
+
+    await findApiCandidateRow()
+
+    expect(screen.getByText('의미 있는 Try 2건')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '프로젝트 의미 Try' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', { name: 'API 신물 억제 그룹 try#2 API 후보 후보' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', { name: '맛 개선 그룹 try#10 감미료 조정 테스트 완료' }),
+    ).toBeInTheDocument()
+  })
+
   it('switches between experiment groups and shows group-specific tries', async () => {
     const user = userEvent.setup()
     mockProjectDetail()
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
     await user.click(screen.getByRole('button', { name: '맛 개선 그룹' }))
 
     expect(screen.getByText('try#1-10')).toBeInTheDocument()
@@ -208,7 +231,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
     await user.type(screen.getByLabelText('실험 그룹명'), '안정성 개선 그룹')
     await user.type(screen.getByLabelText('그룹 목적'), '가속 안정성')
     await user.click(screen.getByRole('button', { name: '그룹 추가' }))
@@ -236,7 +259,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
 
     await user.click(screen.getByRole('button', { name: 'try#1 마킹' }))
 
@@ -259,7 +282,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
     await user.click(screen.getByRole('button', { name: 'try#1 마킹' }))
 
     expect(screen.getByText('의미 있는 Try 2건')).toBeInTheDocument()
@@ -278,7 +301,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
 
     await user.type(screen.getByLabelText('Try 목적'), '붕해 시간 개선 후보')
     await user.click(screen.getByRole('button', { name: 'Try 추가' }))
@@ -319,7 +342,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
 
     await user.selectOptions(screen.getByLabelText('결과 등록 Try'), '1')
     await user.type(screen.getByLabelText('측정 항목'), '붕해 시간')
@@ -348,7 +371,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
 
     expect(screen.getByRole('heading', { name: '테스트 결과 이력' })).toBeInTheDocument()
     expect(
@@ -385,7 +408,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
 
     expect(screen.getByRole('heading', { name: 'Try 배합 정보' })).toBeInTheDocument()
     expect(screen.getByLabelText('원료명 1')).toHaveValue('비타민 C')
@@ -430,7 +453,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectDetail()
 
-    await screen.findByText('API 후보')
+    await findApiCandidateRow()
     await user.type(screen.getByLabelText('측정 항목'), '색')
     await user.click(screen.getByRole('button', { name: '테스트 결과 등록' }))
 

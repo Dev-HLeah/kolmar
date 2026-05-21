@@ -244,14 +244,20 @@ export function ProjectDetailPage() {
     [activeGroupId, groups],
   )
   const tries = useMemo(() => activeGroup?.tries ?? [], [activeGroup])
-  const markedCount = useMemo(
+  const markedTryRows = useMemo(
     () =>
-      groups.reduce(
-        (total, group) => total + group.tries.filter((item) => item.marked).length,
-        0,
+      groups.flatMap((group) =>
+        group.tries
+          .filter((item) => item.marked)
+          .map((item) => ({
+            groupId: group.id,
+            groupName: group.name,
+            tryRow: item,
+          })),
       ),
     [groups],
   )
+  const markedCount = markedTryRows.length
   const visibleTries = useMemo(
     () =>
       tries.filter((item) => {
@@ -801,6 +807,39 @@ export function ProjectDetailPage() {
           </button>
         </form>
         {notice ? <p className="local-notice">{notice}</p> : null}
+        <section className="project-marked-tries">
+          <div className="panel-heading compact">
+            <h3>프로젝트 의미 Try</h3>
+            <span>{markedTryRows.length}건</span>
+          </div>
+          <div className="workflow-table-wrap">
+            <table className="workflow-table">
+              <thead>
+                <tr>
+                  <th>그룹</th>
+                  <th>Try</th>
+                  <th>목적</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {markedTryRows.map(({ groupId, groupName, tryRow }) => (
+                  <tr key={`${groupId}-${tryRow.id}`}>
+                    <td>{groupName}</td>
+                    <td>try#{tryRow.id}</td>
+                    <td>{tryRow.title}</td>
+                    <td>{tryStatusLabels[tryRow.status]}</td>
+                  </tr>
+                ))}
+                {markedTryRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>프로젝트에 마킹된 Try 없음</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <section className="test-result-history">
           <div className="panel-heading compact">
             <h3>테스트 결과 이력</h3>
