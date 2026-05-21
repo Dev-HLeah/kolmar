@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { apiDelete, apiGet, apiPatch, apiPost } from '../api/client'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './WorkflowPages.css'
@@ -279,6 +279,7 @@ export function ProjectDetailPage() {
   const [productTryNumber, setProductTryNumber] = useState('')
   const [productName, setProductName] = useState('')
   const [productPackagingName, setProductPackagingName] = useState('')
+  const [lastCreatedProduct, setLastCreatedProduct] = useState<ApiCreatedProduct | null>(null)
   const [notice, setNotice] = useState('')
   const activeGroup = useMemo(
     () => groups.find((group) => group.id === activeGroupId) ?? groups[0],
@@ -394,6 +395,7 @@ export function ProjectDetailPage() {
         setEditTryNumber(nextActiveGroup.tries[0] ? String(nextActiveGroup.tries[0].id) : '')
         setResultTryNumber('')
         setProductTryNumber('')
+        setLastCreatedProduct(null)
         setStatusFilter('all')
         setMarkedTypeFilter('all')
         syncEditForm(nextActiveGroup.tries[0])
@@ -410,6 +412,7 @@ export function ProjectDetailPage() {
         setEditTryNumber(String(initialTries[0].id))
         setResultTryNumber('')
         setProductTryNumber('')
+        setLastCreatedProduct(null)
         setStatusFilter('all')
         setMarkedTypeFilter('all')
         syncEditForm(initialTries[0])
@@ -439,6 +442,7 @@ export function ProjectDetailPage() {
     setEditTryNumber(group.tries[0] ? String(group.tries[0].id) : '')
     setResultTryNumber('')
     setProductTryNumber('')
+    setLastCreatedProduct(null)
     syncEditForm(group.tries[0])
   }
 
@@ -471,6 +475,7 @@ export function ProjectDetailPage() {
       setEditTryNumber('')
       setResultTryNumber('')
       setProductTryNumber('')
+      setLastCreatedProduct(null)
       syncEditForm(undefined)
       setNotice('')
     } catch {
@@ -486,6 +491,7 @@ export function ProjectDetailPage() {
       setEditTryNumber('')
       setResultTryNumber('')
       setProductTryNumber('')
+      setLastCreatedProduct(null)
       syncEditForm(undefined)
       setNotice(localOnlyNotice)
     }
@@ -694,6 +700,7 @@ export function ProjectDetailPage() {
     }
 
     if (!selectedProductTry.apiId) {
+      setLastCreatedProduct(null)
       setNotice(localOnlyNotice)
       return
     }
@@ -706,8 +713,10 @@ export function ProjectDetailPage() {
 
       setProductName('')
       setProductPackagingName('')
+      setLastCreatedProduct(createdProduct)
       setNotice(`제품으로 등록됐습니다: ${createdProduct.name}`)
     } catch {
+      setLastCreatedProduct(null)
       setNotice(localOnlyNotice)
     }
   }
@@ -989,6 +998,12 @@ export function ProjectDetailPage() {
           </button>
         </form>
         {notice ? <p className="local-notice">{notice}</p> : null}
+        {lastCreatedProduct ? (
+          <div className="product-export-result">
+            <span>{lastCreatedProduct.name}</span>
+            <Link to={`/products/${lastCreatedProduct.id}`}>등록 제품 보기</Link>
+          </div>
+        ) : null}
         <section className="project-marked-tries">
           <div className="panel-heading compact">
             <h3>프로젝트 의미 Try</h3>

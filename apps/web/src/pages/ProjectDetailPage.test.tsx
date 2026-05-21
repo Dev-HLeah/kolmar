@@ -446,6 +446,10 @@ describe('ProjectDetailPage', () => {
       formulaNote: '초기 기준',
     })
     expect(screen.getByText('제품으로 등록됐습니다: 신물 억제 후보 제품')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '등록 제품 보기' })).toHaveAttribute(
+      'href',
+      '/products/product-1',
+    )
   })
 
   it('shows loaded try test result history', async () => {
