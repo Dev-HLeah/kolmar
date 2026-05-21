@@ -41,6 +41,7 @@ const recentIngredientStorageKey = 'kolma:recent-ingredients'
 const maxRecentIngredientCount = 8
 const formulaColumnKeys = ['ingredientName', 'amount', 'unit', 'ratio', 'note'] as const
 const supportedUnits = new Set(['mg', 'g', '%', 'ppm'])
+const convertibleUnits = new Set(['mg', 'g'])
 
 type FormulaColumnKey = (typeof formulaColumnKeys)[number]
 
@@ -50,6 +51,37 @@ export function FormulaInputTable({ rows, onChange }: Props) {
 
   function updateRow(index: number, key: keyof FormulaRow, value: string) {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)))
+  }
+
+  function convertUnit(index: number, targetUnit: 'mg' | 'g') {
+    const row = rows[index]
+
+    if (!row) {
+      return
+    }
+
+    const amount = Number(row.amount)
+
+    if (
+      row.amount.trim().length === 0 ||
+      !Number.isFinite(amount) ||
+      !convertibleUnits.has(row.unit)
+    ) {
+      return
+    }
+
+    if (row.unit === targetUnit) {
+      return
+    }
+
+    const convertedAmount = targetUnit === 'mg' ? amount * 1000 : amount / 1000
+    onChange(
+      rows.map((currentRow, rowIndex) =>
+        rowIndex === index
+          ? { ...currentRow, amount: formatAmount(convertedAmount), unit: targetUnit }
+          : currentRow,
+      ),
+    )
   }
 
   function addRow() {
@@ -293,16 +325,36 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                   <label className="sr-only" htmlFor={`unit-${index}`}>
                     단위 {index + 1}
                   </label>
-                  <select
-                    id={`unit-${index}`}
-                    value={row.unit}
-                    onChange={(event) => updateRow(index, 'unit', event.target.value)}
-                  >
-                    <option value="mg">mg</option>
-                    <option value="g">g</option>
-                    <option value="%">%</option>
-                    <option value="ppm">ppm</option>
-                  </select>
+                  <div className="unit-control">
+                    <select
+                      id={`unit-${index}`}
+                      value={row.unit}
+                      onChange={(event) => updateRow(index, 'unit', event.target.value)}
+                    >
+                      <option value="mg">mg</option>
+                      <option value="g">g</option>
+                      <option value="%">%</option>
+                      <option value="ppm">ppm</option>
+                    </select>
+                    <div className="unit-conversion-actions">
+                      <button
+                        type="button"
+                        aria-label={`${index + 1}행 mg로 변환`}
+                        disabled={!canConvertUnit(row, 'mg')}
+                        onClick={() => convertUnit(index, 'mg')}
+                      >
+                        mg
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${index + 1}행 g로 변환`}
+                        disabled={!canConvertUnit(row, 'g')}
+                        onClick={() => convertUnit(index, 'g')}
+                      >
+                        g
+                      </button>
+                    </div>
+                  </div>
                 </td>
                 <td>
                   <label className="sr-only" htmlFor={`ratio-${index}`}>
@@ -420,4 +472,17 @@ function parseSpreadsheetRows(clipboardText: string) {
 function normalizeUnit(unit: string, fallbackUnit: string) {
   const normalized = unit.trim()
   return supportedUnits.has(normalized) ? normalized : fallbackUnit
+}
+
+function canConvertUnit(row: FormulaRow, targetUnit: 'mg' | 'g') {
+  return (
+    row.unit !== targetUnit &&
+    convertibleUnits.has(row.unit) &&
+    row.amount.trim().length > 0 &&
+    Number.isFinite(Number(row.amount))
+  )
+}
+
+function formatAmount(amount: number) {
+  return Number(amount.toFixed(6)).toString()
 }

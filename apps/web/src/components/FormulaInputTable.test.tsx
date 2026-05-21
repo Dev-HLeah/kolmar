@@ -138,4 +138,33 @@ describe('FormulaInputTable', () => {
     expect(within(recentRegion).getByRole('button', { name: '비타민 C' })).toBeInTheDocument()
     expect(within(recentRegion).getByRole('button', { name: '아연' })).toBeInTheDocument()
   })
+
+  it('converts amount units between grams and milligrams', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [rows, setRows] = useState<FormulaRow[]>([
+        { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
+      ])
+
+      return <FormulaInputTable rows={rows} onChange={setRows} />
+    }
+
+    render(<Harness />)
+
+    expect(screen.getByRole('button', { name: '1행 mg로 변환' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '1행 g로 변환' })).toBeDisabled()
+
+    await user.type(screen.getByLabelText('함량 1'), '1.5')
+    await user.selectOptions(screen.getByLabelText('단위 1'), 'g')
+    await user.click(screen.getByRole('button', { name: '1행 mg로 변환' }))
+
+    expect(screen.getByLabelText('함량 1')).toHaveValue('1500')
+    expect(screen.getByLabelText('단위 1')).toHaveValue('mg')
+
+    await user.click(screen.getByRole('button', { name: '1행 g로 변환' }))
+
+    expect(screen.getByLabelText('함량 1')).toHaveValue('1.5')
+    expect(screen.getByLabelText('단위 1')).toHaveValue('g')
+  })
 })
