@@ -18,6 +18,7 @@ type ProductFilters = {
   name: string
   dosageForm: string
   ingredient: string
+  status: string
 }
 
 type ApiProduct = {
@@ -43,6 +44,7 @@ const defaultFilters: ProductFilters = {
   name: '',
   dosageForm: '',
   ingredient: '',
+  status: '',
 }
 
 const seededProducts: ProductRecord[] = [
@@ -122,8 +124,9 @@ export function ProductsPage() {
         const nameMatched = includesText(product.name, filters.name)
         const dosageFormMatched = includesText(product.dosageForm, filters.dosageForm)
         const ingredientMatched = includesText(product.ingredientNames.join(' '), filters.ingredient)
+        const statusMatched = !filters.status || product.status === filters.status
 
-        return nameMatched && dosageFormMatched && ingredientMatched
+        return nameMatched && dosageFormMatched && ingredientMatched && statusMatched
       }),
     [filters, products],
   )
@@ -154,8 +157,7 @@ export function ProductsPage() {
         </div>
       </section>
 
-      <section className="product-library-layout">
-        <section className="workflow-panel product-library-panel">
+      <section className="workflow-panel">
           <div className="panel-heading compact">
             <h3>등록 제품</h3>
             <span>{filteredProducts.length}건</span>
@@ -185,6 +187,19 @@ export function ProductsPage() {
                 placeholder="비타민 C, 아연"
               />
             </label>
+            <label>
+              상태
+              <select
+                value={filters.status}
+                onChange={(event) => updateFilter('status', event.target.value)}
+              >
+                <option value="">전체</option>
+                <option value="RELEASED">출시</option>
+                <option value="PENDING_RELEASE">출시 대기</option>
+                <option value="UNDER_REVIEW">검수중</option>
+                <option value="DISCONTINUED">판매 중단</option>
+              </select>
+            </label>
           </div>
           {notice ? <p className="local-notice">{notice}</p> : null}
           <div className="workflow-table-wrap">
@@ -207,7 +222,7 @@ export function ProductsPage() {
                     </td>
                     <td>{product.dosageForm}</td>
                     <td>{formatIngredientNames(product.ingredientNames)}</td>
-                    <td>{toStatusLabel(product.status)}</td>
+                    <td><StatusBadge status={product.status} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -216,28 +231,6 @@ export function ProductsPage() {
           {filteredProducts.length === 0 ? (
             <p className="empty-result">검색 조건에 맞는 등록 제품이 없습니다.</p>
           ) : null}
-        </section>
-
-        <aside className="workflow-panel product-context-panel">
-          <div className="panel-heading compact">
-            <h3>제품 기준 작업</h3>
-            <span>완제품</span>
-          </div>
-          <dl className="summary-list">
-            <div>
-              <dt>전체 등록 제품</dt>
-              <dd>{products.length}건</dd>
-            </div>
-            <div>
-              <dt>검색 결과</dt>
-              <dd>{filteredProducts.length}건</dd>
-            </div>
-            <div>
-              <dt>수정 가능 정보</dt>
-              <dd>제품 설명, 참고 사항, 상태</dd>
-            </div>
-          </dl>
-        </aside>
       </section>
     </div>
   )
@@ -299,13 +292,20 @@ function toProductRecord(product: ApiProduct): ProductRecord {
   }
 }
 
-function toStatusLabel(status: ProductStatus) {
-  const statusLabels: Record<ProductStatus, string> = {
-    RELEASED: '출시',
-    PENDING_RELEASE: '출시 대기',
-    UNDER_REVIEW: '검수중',
-    DISCONTINUED: '판매 중단',
-  }
+const STATUS_LABELS: Record<ProductStatus, string> = {
+  RELEASED: '출시',
+  PENDING_RELEASE: '출시 대기',
+  UNDER_REVIEW: '검수중',
+  DISCONTINUED: '판매 중단',
+}
 
-  return statusLabels[status]
+const STATUS_BADGE_CLASSES: Record<ProductStatus, string> = {
+  RELEASED: 'product-status-badge product-status-released',
+  PENDING_RELEASE: 'product-status-badge product-status-pending',
+  UNDER_REVIEW: 'product-status-badge product-status-review',
+  DISCONTINUED: 'product-status-badge product-status-discontinued',
+}
+
+function StatusBadge({ status }: { status: ProductStatus }) {
+  return <span className={STATUS_BADGE_CLASSES[status]}>{STATUS_LABELS[status]}</span>
 }

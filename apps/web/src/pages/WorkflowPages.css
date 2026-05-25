@@ -87,7 +87,7 @@
 
 .product-search-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   padding: 0 16px 16px;
 }
@@ -102,6 +102,7 @@
 }
 
 .product-search-grid input,
+.product-search-grid select,
 .confirm-modal input {
   min-height: 38px;
   width: 100%;
@@ -110,6 +111,37 @@
   border-radius: 6px;
   color: var(--text);
   background: #ffffff;
+}
+
+.product-status-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.product-status-released {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.product-status-pending {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.product-status-review {
+  color: #1d6dcc;
+  background: #dbeafe;
+}
+
+.product-status-discontinued {
+  color: var(--text-muted);
+  background: var(--surface-muted);
 }
 
 .form-actions {
@@ -129,6 +161,31 @@
   gap: 10px;
   align-items: center;
   justify-content: flex-end;
+}
+
+.primary-dashboard-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 6px;
+  color: #ffffff;
+  background: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 0.12s ease;
+}
+
+.primary-dashboard-button:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.primary-dashboard-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .back-button,
@@ -479,35 +536,50 @@
 
 .similar-formula-list {
   display: grid;
-  gap: 12px;
-  padding: 0 16px 16px;
+  gap: 10px;
+  padding: 14px 16px 16px;
 }
 
 .similar-formula-card {
   display: grid;
-  gap: 10px;
-  padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #ffffff;
+  box-shadow: 0 2px 8px rgb(17 24 21 / 5%);
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+
+.similar-formula-card:hover {
+  box-shadow: 0 4px 16px rgb(17 24 21 / 10%);
 }
 
 .similar-formula-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--line);
 }
 
 .similar-formula-heading h3 {
   color: var(--heading);
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 135%;
 }
 
-.similar-formula-card p,
-.similar-formula-card li {
-  color: var(--text);
+.similar-formula-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.similar-formula-card p {
+  margin: 0;
+  color: var(--text-muted);
   font-size: 13px;
   line-height: 150%;
 }
@@ -515,19 +587,39 @@
 .similar-formula-card ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .similar-formula-card li {
-  min-height: 28px;
   display: inline-flex;
   align-items: center;
+  height: 26px;
   padding: 0 10px;
-  border-radius: 999px;
-  color: var(--heading);
-  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+  font-size: 12px;
   font-weight: 700;
+}
+
+.score-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
 }
 
 .formulation-guidance {
@@ -567,6 +659,136 @@
 .confirm-modal p,
 .confirm-modal label {
   margin: 0 16px 16px;
+}
+
+.unsaved-actions {
+  justify-content: space-between;
+}
+
+.unsaved-leave-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.similar-modal {
+  width: min(640px, 100%);
+  max-height: min(80vh, 620px);
+  overflow-y: auto;
+  padding-bottom: 0;
+  box-shadow: 0 24px 60px rgb(17 24 21 / 24%);
+}
+
+.similar-modal-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.status-select-wrap {
+  position: relative;
+}
+
+.status-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: filter 0.12s ease;
+}
+
+.status-select-trigger:hover {
+  filter: brightness(0.94);
+}
+
+.status-select-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 3px;
+  min-width: 148px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 28px rgb(17 24 21 / 13%);
+}
+
+.status-select-option {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 10px;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  transition: filter 0.1s ease;
+}
+
+.status-select-option:hover {
+  filter: brightness(0.93);
+}
+
+.status-select-option.is-selected {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+.status-opt-released {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+}
+
+.status-opt-pending {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: var(--warning-soft);
+}
+
+.status-opt-review {
+  color: #1d6dcc;
+  background: #dbeafe;
+  border-color: #dbeafe;
+}
+
+.status-opt-discontinued {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border-color: var(--line);
+}
+
+.product-delete-zone {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.product-delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 @media (max-width: 980px) {

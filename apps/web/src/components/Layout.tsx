@@ -54,7 +54,7 @@ export function Layout() {
         <header className="topbar">
           <div>
             <span className="workspace-eyebrow">Health Functional Food</span>
-            <h1>AI 배합 설계 워크스페이스</h1>
+            <h1>배합 설계 워크스페이스</h1>
           </div>
           <label className="role-control">
             <span>접근 역할</span>

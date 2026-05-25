@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { apiDelete, apiGet, apiPatch } from '../api/client'
 import './WorkflowPages.css'
 
@@ -17,7 +17,6 @@ type ProductSummary = {
 type MetadataDraft = {
   description: string
   referenceNote: string
-  status: ProductStatus
 }
 
 type FormulaRow = {
@@ -74,22 +73,6 @@ type SimilarFormulaIngredient = {
   ratioDifference: number
 }
 
-type FormulationGuidance = {
-  productId: string
-  dosageFormName: string
-  packagingName: string
-  kolmarSpecial: boolean
-  summary: string
-  signals: FormulationSignal[]
-}
-
-type FormulationSignal = {
-  type: string
-  label: string
-  severity: string
-  message: string
-  checkItems: string[]
-}
 
 const referenceRows: FormulaRow[] = [
   { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '', role: '산미' },
@@ -106,7 +89,6 @@ const referenceSummary: ProductSummary = {
 
 const fallbackNotice = 'API 연결 실패로 샘플 기준 처방을 표시합니다.'
 const similarFallbackNotice = 'API 연결 실패로 로컬 유사 배합 후보를 표시합니다.'
-const formulationFallbackNotice = 'API 연결 실패로 로컬 제형 가이드를 표시합니다.'
 
 const sampleSimilarRecommendations: SimilarFormulaRecommendation[] = [
   {
@@ -134,29 +116,24 @@ const sampleSimilarRecommendations: SimilarFormulaRecommendation[] = [
   },
 ]
 
-const sampleFormulationGuidance: FormulationGuidance = {
-  productId: 'sample-product-1',
-  dosageFormName: '츄어블 정제',
-  packagingName: 'Multi PTP',
-  kolmarSpecial: true,
-  summary: '츄어블 정제 기반으로 콜마 특화 제형과 초기 안정성 신호를 검토합니다.',
-  signals: [
-    {
-      type: 'kolmar-dosage-form',
-      label: '콜마 특화 제형',
-      severity: 'positive',
-      message: '츄어블 정제는 콜마 특화 제형 후보입니다.',
-      checkItems: ['맛 마스킹', '정제 경도', '붕해/용해'],
-    },
-    {
-      type: 'taste-masking',
-      label: '맛 마스킹 필요',
-      severity: 'caution',
-      message:
-        '산미 또는 관능 이슈가 있는 원료가 포함되어 츄어블 정제에서 맛 마스킹 확인이 필요합니다.',
-      checkItems: ['산미', '쓴맛', '감미료 조화'],
-    },
-  ],
+
+function TrashIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+      <path
+        fillRule="evenodd"
+        d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
+      />
+    </svg>
+  )
 }
 
 export function ProductDetailPage() {
@@ -166,7 +143,6 @@ export function ProductDetailPage() {
   const [metadataDraft, setMetadataDraft] = useState<MetadataDraft>({
     description: referenceSummary.description,
     referenceNote: referenceSummary.referenceNote,
-    status: referenceSummary.status,
   })
   const [rows, setRows] = useState(referenceRows)
   const [notice, setNotice] = useState('')
@@ -177,10 +153,18 @@ export function ProductDetailPage() {
     SimilarFormulaRecommendation[]
   >([])
   const [similarNotice, setSimilarNotice] = useState('')
-  const [formulationGuidance, setFormulationGuidance] = useState<FormulationGuidance | null>(null)
-  const [formulationNotice, setFormulationNotice] = useState('')
+  const [savedMetadata, setSavedMetadata] = useState<MetadataDraft>({
+    description: referenceSummary.description,
+    referenceNote: referenceSummary.referenceNote,
+  })
+  const [isSimilarModalOpen, setIsSimilarModalOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const statusLabel = useMemo(() => toStatusLabel(summary.status), [summary.status])
+  const isDirty =
+    metadataDraft.description !== savedMetadata.description ||
+    metadataDraft.referenceNote !== savedMetadata.referenceNote
+
+  const blocker = useBlocker(isDirty)
 
   useEffect(() => {
     if (!productId) {
@@ -198,13 +182,14 @@ export function ProductDetailPage() {
         }
 
         const nextSummary = toProductSummary(product)
-
-        setSummary(nextSummary)
-        setMetadataDraft({
+        const nextMetadata = {
           description: nextSummary.description,
           referenceNote: nextSummary.referenceNote,
-          status: nextSummary.status,
-        })
+        }
+
+        setSummary(nextSummary)
+        setMetadataDraft(nextMetadata)
+        setSavedMetadata(nextMetadata)
         setRows(toFormulaRows(product))
         setNotice('')
 
@@ -228,39 +213,19 @@ export function ProductDetailPage() {
           setSimilarNotice(similarFallbackNotice)
         }
 
-        try {
-          const guidance = await apiGet<FormulationGuidance>(
-            `/products/${productId}/formulation-guidance`,
-          )
-
-          if (!isActive) {
-            return
-          }
-
-          setFormulationGuidance(guidance)
-          setFormulationNotice('')
-        } catch {
-          if (!isActive) {
-            return
-          }
-
-          setFormulationGuidance(sampleFormulationGuidance)
-          setFormulationNotice(formulationFallbackNotice)
-        }
       } catch {
         if (isActive) {
-          setSummary(referenceSummary)
-          setMetadataDraft({
+          const fallbackMetadata = {
             description: referenceSummary.description,
             referenceNote: referenceSummary.referenceNote,
-            status: referenceSummary.status,
-          })
+          }
+          setSummary(referenceSummary)
+          setMetadataDraft(fallbackMetadata)
+          setSavedMetadata(fallbackMetadata)
           setRows(referenceRows)
           setNotice(fallbackNotice)
           setSimilarRecommendations(sampleSimilarRecommendations)
           setSimilarNotice(similarFallbackNotice)
-          setFormulationGuidance(sampleFormulationGuidance)
-          setFormulationNotice(formulationFallbackNotice)
         }
       }
     }
@@ -272,28 +237,64 @@ export function ProductDetailPage() {
     }
   }, [productId])
 
-  async function handleSaveMetadata(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
+  async function handleStatusChange(newStatus: ProductStatus) {
     if (!productId) {
       return
     }
 
-    setSaveNotice('')
-    const updatedProduct = await apiPatch<ApiProduct, MetadataDraft>(`/products/${productId}`, {
-      description: metadataDraft.description,
-      referenceNote: metadataDraft.referenceNote,
-      status: metadataDraft.status,
-    })
-    const nextSummary = toProductSummary(updatedProduct)
+    setSummary((prev) => ({ ...prev, status: newStatus }))
 
-    setSummary(nextSummary)
-    setMetadataDraft({
-      description: nextSummary.description,
-      referenceNote: nextSummary.referenceNote,
-      status: nextSummary.status,
-    })
-    setSaveNotice('제품 정보가 저장됐습니다.')
+    try {
+      await apiPatch<ApiProduct, { status: ProductStatus }>(`/products/${productId}`, {
+        status: newStatus,
+      })
+    } catch {
+      // PoC: optimistic update stays, no rollback
+    }
+  }
+
+  async function saveMetadata(): Promise<boolean> {
+    if (!productId) {
+      return false
+    }
+
+    setIsSaving(true)
+    setSaveNotice('')
+
+    try {
+      const updatedProduct = await apiPatch<ApiProduct, MetadataDraft>(`/products/${productId}`, {
+        description: metadataDraft.description,
+        referenceNote: metadataDraft.referenceNote,
+      })
+      const nextSummary = toProductSummary(updatedProduct)
+      const nextMetadata = {
+        description: nextSummary.description,
+        referenceNote: nextSummary.referenceNote,
+      }
+
+      setSummary(nextSummary)
+      setMetadataDraft(nextMetadata)
+      setSavedMetadata(nextMetadata)
+      setSaveNotice('제품 정보가 저장됐습니다.')
+      return true
+    } catch {
+      setSaveNotice('저장에 실패했습니다. 다시 시도해주세요.')
+      return false
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleSaveMetadata(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await saveMetadata()
+  }
+
+  async function handleSaveAndLeave() {
+    const success = await saveMetadata()
+    if (success) {
+      blocker.proceed?.()
+    }
   }
 
   async function handleSoftDelete() {
@@ -309,22 +310,19 @@ export function ProductDetailPage() {
     navigate('/products', { state: { restoreProductsList: true } })
   }
 
-  function focusSimilarProducts() {
-    document.getElementById('similar-formulas')?.scrollIntoView({ behavior: 'smooth' })
-  }
-
   return (
     <div className="workflow-page">
       <button type="button" className="back-button" onClick={handleBackToList}>
         제품 목록으로 돌아가기
       </button>
+
       <section className="page-heading">
         <div>
           <h2>{summary.name}</h2>
           <p>{summary.headline}</p>
         </div>
         <div className="heading-actions">
-          <span className="status-pill">{statusLabel}</span>
+          <StatusSelect value={summary.status} onChange={handleStatusChange} />
           {productId ? (
             <Link className="workflow-primary-link" to={`/projects?sourceProductId=${productId}`}>
               이 제품으로 프로젝트 시작
@@ -332,164 +330,96 @@ export function ProductDetailPage() {
           ) : null}
         </div>
       </section>
+
       {notice ? <p className="local-notice">{notice}</p> : null}
 
-      <section className="product-detail-grid">
-        <section className="workflow-panel">
-          <div className="panel-heading compact">
-            <h3>제품 배합 정보</h3>
-            <button type="button" className="secondary-button" onClick={focusSimilarProducts}>
-              유사 배합 제품
-            </button>
-          </div>
-          <div className="workflow-table-wrap">
-            <table className="workflow-table">
-              <thead>
-                <tr>
-                  <th>원료명</th>
-                  <th>함량</th>
-                  <th>단위</th>
-                  <th>비율</th>
-                  <th>역할</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr key={`${row.ingredientName}-${index}`}>
-                    <td>{row.ingredientName || '-'}</td>
-                    <td>{row.amount || '-'}</td>
-                    <td>{row.unit || '-'}</td>
-                    <td>{row.ratio || '-'}</td>
-                    <td>{row.role || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <form className="workflow-panel" onSubmit={handleSaveMetadata}>
-          <div className="panel-heading compact">
-            <h3>제품 관리 정보</h3>
-            <span>수정 가능</span>
-          </div>
-          <div className="form-grid single-column">
-            <label>
-              제품 설명
-              <textarea
-                value={metadataDraft.description}
-                onChange={(event) =>
-                  setMetadataDraft((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label>
-              참고 사항
-              <textarea
-                value={metadataDraft.referenceNote}
-                onChange={(event) =>
-                  setMetadataDraft((current) => ({
-                    ...current,
-                    referenceNote: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label>
-              상태
-              <select
-                value={metadataDraft.status}
-                onChange={(event) =>
-                  setMetadataDraft((current) => ({
-                    ...current,
-                    status: event.target.value as ProductStatus,
-                  }))
-                }
-              >
-                <option value="RELEASED">출시</option>
-                <option value="PENDING_RELEASE">출시 대기</option>
-                <option value="UNDER_REVIEW">검수중</option>
-                <option value="DISCONTINUED">판매 중단</option>
-              </select>
-            </label>
-          </div>
-          {saveNotice ? <p className="local-notice">{saveNotice}</p> : null}
-          <div className="form-actions">
-            <button type="button" className="danger-button" onClick={() => setIsDeleteOpen(true)}>
-              제품 삭제
-            </button>
-            <button type="submit" className="primary-dashboard-button">
-              제품 정보 저장
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="workflow-panel" id="similar-formulas">
-        <div className="panel-heading compact">
-          <h3>유사 배합 추천</h3>
-          <span>{similarRecommendations.length}건</span>
-        </div>
-        {similarNotice ? <p className="local-notice">{similarNotice}</p> : null}
-        {similarRecommendations.length > 0 ? (
-          <div className="similar-formula-list">
-            {similarRecommendations.map((recommendation) => (
-              <article className="similar-formula-card" key={recommendation.formulaId}>
-                <div className="similar-formula-heading">
-                  <h3>{recommendation.productName}</h3>
-                  <span className="status-pill">유사도 {recommendation.similarityScore}%</span>
-                </div>
-                <p>{recommendation.reason}</p>
-                <ul>
-                  {recommendation.matchedIngredients.map((ingredient) => (
-                    <li key={ingredient.ingredientName}>{formatMatchedIngredient(ingredient)}</li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="empty-result">배합 비율이 있는 등록 제품이 쌓이면 유사 후보가 표시됩니다.</p>
-        )}
-      </section>
       <section className="workflow-panel">
         <div className="panel-heading compact">
-          <h3>제형 안정성 가이드</h3>
-          <span>{formulationGuidance?.signals.length ?? 0}건</span>
+          <h3>원료 배합 정보</h3>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setIsSimilarModalOpen(true)}
+          >
+            유사 배합 제품
+          </button>
         </div>
-        {formulationNotice ? <p className="local-notice">{formulationNotice}</p> : null}
-        {formulationGuidance ? (
-          <div className="formulation-guidance">
-            <div>
-              <p className="guidance-context">
-                {formulationGuidance.dosageFormName} · {formulationGuidance.packagingName}
-              </p>
-              <p className="guidance-summary">{formulationGuidance.summary}</p>
-            </div>
-            <div className="similar-formula-list">
-              {formulationGuidance.signals.map((signal) => (
-                <article className="similar-formula-card" key={signal.type}>
-                  <div className="similar-formula-heading">
-                    <h3>{signal.label}</h3>
-                    <span className="status-pill">{toSeverityLabel(signal.severity)}</span>
-                  </div>
-                  <p>{signal.message}</p>
-                  <ul>
-                    {signal.checkItems.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </article>
+        <div className="workflow-table-wrap">
+          <table className="workflow-table">
+            <thead>
+              <tr>
+                <th>원료명</th>
+                <th>함량</th>
+                <th>단위</th>
+                <th>비율</th>
+                <th>역할</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={`${row.ingredientName}-${index}`}>
+                  <td>{row.ingredientName || '-'}</td>
+                  <td>{row.amount || '-'}</td>
+                  <td>{row.unit || '-'}</td>
+                  <td>{row.ratio || '-'}</td>
+                  <td>{row.role || '-'}</td>
+                </tr>
               ))}
-            </div>
-          </div>
-        ) : (
-          <p className="empty-result">제형과 원료 정보가 쌓이면 초기 안정성 신호가 표시됩니다.</p>
-        )}
+            </tbody>
+          </table>
+        </div>
       </section>
+
+      <form className="workflow-panel" onSubmit={handleSaveMetadata}>
+        <div className="panel-heading compact">
+          <h3>제품 관리 정보</h3>
+          <button
+            type="submit"
+            className="primary-dashboard-button"
+            disabled={!isDirty || isSaving}
+          >
+            {isSaving ? '저장 중...' : '저장'}
+          </button>
+        </div>
+        <div className="form-grid single-column">
+          <label>
+            제품 설명
+            <textarea
+              value={metadataDraft.description}
+              onChange={(event) =>
+                setMetadataDraft((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label>
+            참고 사항
+            <textarea
+              value={metadataDraft.referenceNote}
+              onChange={(event) =>
+                setMetadataDraft((current) => ({
+                  ...current,
+                  referenceNote: event.target.value,
+                }))
+              }
+            />
+          </label>
+        </div>
+        {saveNotice ? <p className="local-notice">{saveNotice}</p> : null}
+      </form>
+
+      <div className="product-delete-zone">
+        <button
+          type="button"
+          className="product-delete-button"
+          onClick={() => setIsDeleteOpen(true)}
+        >
+          <TrashIcon />
+          제품 삭제
+        </button>
+      </div>
 
       {isDeleteOpen ? (
         <div className="modal-backdrop" role="presentation">
@@ -523,6 +453,88 @@ export function ProductDetailPage() {
                 삭제 실행
               </button>
             </div>
+          </section>
+        </div>
+      ) : null}
+
+      {blocker.state === 'blocked' ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="workflow-panel confirm-modal" aria-label="저장되지 않은 변경사항">
+            <div className="panel-heading compact">
+              <h3>저장되지 않은 변경사항</h3>
+            </div>
+            <p>수정된 내용이 저장되지 않았습니다. 어떻게 하시겠습니까?</p>
+            <div className="form-actions unsaved-actions">
+              <button type="button" className="secondary-button" onClick={() => blocker.reset?.()}>
+                취소
+              </button>
+              <div className="unsaved-leave-actions">
+                <button type="button" className="danger-button" onClick={() => blocker.proceed?.()}>
+                  나가기
+                </button>
+                <button
+                  type="button"
+                  className="primary-dashboard-button"
+                  disabled={isSaving}
+                  onClick={() => void handleSaveAndLeave()}
+                >
+                  {isSaving ? '저장 중...' : '저장 후 나가기'}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isSimilarModalOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsSimilarModalOpen(false)
+          }}
+        >
+          <section className="workflow-panel similar-modal" aria-label="유사 배합 제품">
+            <div className="panel-heading compact similar-modal-heading">
+              <h3>유사 배합 제품</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span>{similarRecommendations.length}건</span>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setIsSimilarModalOpen(false)}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+            {similarNotice ? <p className="local-notice">{similarNotice}</p> : null}
+            {similarRecommendations.length > 0 ? (
+              <div className="similar-formula-list">
+                {similarRecommendations.map((recommendation) => (
+                  <article className="similar-formula-card" key={recommendation.formulaId}>
+                    <div className="similar-formula-heading">
+                      <h3>{recommendation.productName}</h3>
+                      <span className="score-badge">{recommendation.similarityScore}%</span>
+                    </div>
+                    <div className="similar-formula-body">
+                      <p>{recommendation.reason}</p>
+                      <ul>
+                        {recommendation.matchedIngredients.map((ingredient) => (
+                          <li key={ingredient.ingredientName}>
+                            {formatMatchedIngredient(ingredient)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-result">
+                배합 비율이 있는 등록 제품이 쌓이면 유사 후보가 표시됩니다.
+              </p>
+            )}
           </section>
         </div>
       ) : null}
@@ -577,25 +589,96 @@ function formatRatio(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
-function toSeverityLabel(severity: string) {
-  if (severity === 'positive') {
-    return '추천'
-  }
+const STATUS_OPTIONS: { value: ProductStatus; label: string }[] = [
+  { value: 'RELEASED', label: '출시' },
+  { value: 'PENDING_RELEASE', label: '출시 대기' },
+  { value: 'UNDER_REVIEW', label: '검수중' },
+  { value: 'DISCONTINUED', label: '판매 중단' },
+]
 
-  if (severity === 'caution') {
-    return '주의'
-  }
-
-  return '검토'
+const STATUS_CLASS: Record<ProductStatus, string> = {
+  RELEASED: 'status-opt-released',
+  PENDING_RELEASE: 'status-opt-pending',
+  UNDER_REVIEW: 'status-opt-review',
+  DISCONTINUED: 'status-opt-discontinued',
 }
 
-function toStatusLabel(status: ProductStatus) {
-  const statusLabels: Record<ProductStatus, string> = {
-    RELEASED: '출시',
-    PENDING_RELEASE: '출시 대기',
-    UNDER_REVIEW: '검수중',
-    DISCONTINUED: '판매 중단',
-  }
+function StatusSelect({
+  value,
+  onChange,
+}: {
+  value: ProductStatus
+  onChange: (status: ProductStatus) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
 
-  return statusLabels[status]
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  const currentLabel = STATUS_OPTIONS.find((opt) => opt.value === value)?.label ?? value
+
+  return (
+    <div className="status-select-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`status-select-trigger ${STATUS_CLASS[value]}`}
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        {currentLabel}
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="currentColor"
+          aria-hidden="true"
+          style={{ opacity: 0.7, transition: 'transform 0.15s', transform: isOpen ? 'rotate(180deg)' : 'none' }}
+        >
+          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {isOpen ? (
+        <div className="status-select-dropdown" role="listbox">
+          {STATUS_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className={`status-select-option ${STATUS_CLASS[option.value]} ${option.value === value ? 'is-selected' : ''}`}
+              onClick={() => {
+                onChange(option.value)
+                setIsOpen(false)
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
+
