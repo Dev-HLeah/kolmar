@@ -4,14 +4,38 @@ type ModelMock = {
   upsert: jest.Mock;
 };
 
+type SeedPrismaMock = {
+  $transaction: jest.Mock;
+  auditLog: ModelMock;
+  dataImportJob: ModelMock;
+  developmentProject: ModelMock;
+  dosageForm: ModelMock;
+  evidenceItem: ModelMock;
+  evidenceLink: ModelMock;
+  evidenceSource: ModelMock;
+  experimentGroup: ModelMock;
+  formulaTry: ModelMock;
+  ingredient: ModelMock;
+  packagingOption: ModelMock;
+  product: ModelMock;
+  productFormula: ModelMock;
+  productFormulaIngredient: ModelMock;
+  rawExternalRecord: ModelMock;
+  tryIngredient: ModelMock;
+  tryMark: ModelMock;
+  tryTestResult: ModelMock;
+  vectorDocument: ModelMock;
+};
+
 function createModelMock(): ModelMock {
   return {
     upsert: jest.fn().mockResolvedValue({}),
   };
 }
 
-function createSeedPrismaMock() {
-  return {
+function createSeedPrismaMock(): SeedPrismaMock {
+  const prisma: SeedPrismaMock = {
+    $transaction: jest.fn(),
     auditLog: createModelMock(),
     dataImportJob: createModelMock(),
     developmentProject: createModelMock(),
@@ -32,6 +56,13 @@ function createSeedPrismaMock() {
     tryTestResult: createModelMock(),
     vectorDocument: createModelMock(),
   };
+
+  prisma.$transaction.mockImplementation(
+    async (callback: (tx: SeedPrismaMock) => Promise<unknown>) =>
+      callback(prisma),
+  );
+
+  return prisma;
 }
 
 describe('seedDatabase', () => {
@@ -85,5 +116,17 @@ describe('seedDatabase', () => {
         where: { id: 'seed-vector-vitamin-c-guidance' },
       }),
     );
+  });
+
+  it('runs every seed execution in a transaction for duplicate-safe reruns', async () => {
+    const prisma = createSeedPrismaMock();
+
+    await seedDatabase(prisma);
+    await seedDatabase(prisma);
+
+    expect(prisma.$transaction.mock.calls).toHaveLength(2);
+    expect(prisma.product.upsert.mock.calls).toHaveLength(2);
+    expect(prisma.formulaTry.upsert.mock.calls).toHaveLength(2);
+    expect(prisma.vectorDocument.upsert.mock.calls).toHaveLength(2);
   });
 });

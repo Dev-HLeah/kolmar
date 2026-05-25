@@ -2,7 +2,7 @@ type UpsertDelegate = {
   upsert: (args: unknown) => Promise<unknown>;
 };
 
-export type SeedPrismaClient = {
+type SeedOperationClient = {
   auditLog: UpsertDelegate;
   dataImportJob: UpsertDelegate;
   developmentProject: UpsertDelegate;
@@ -22,6 +22,12 @@ export type SeedPrismaClient = {
   tryMark: UpsertDelegate;
   tryTestResult: UpsertDelegate;
   vectorDocument: UpsertDelegate;
+};
+
+export type SeedPrismaClient = SeedOperationClient & {
+  $transaction: <T>(
+    callback: (tx: SeedOperationClient) => Promise<T>,
+  ) => Promise<T>;
 };
 
 export type SeedSummary = {
@@ -120,8 +126,8 @@ const formulaIngredients = [
   },
 ];
 
-export async function seedDatabase(
-  prisma: SeedPrismaClient,
+async function upsertSeedData(
+  prisma: SeedOperationClient,
 ): Promise<SeedSummary> {
   for (const dosageForm of dosageForms) {
     await prisma.dosageForm.upsert({
@@ -502,4 +508,10 @@ export async function seedDatabase(
     tries: 1,
     vectorDocuments: 1,
   };
+}
+
+export async function seedDatabase(
+  prisma: SeedPrismaClient,
+): Promise<SeedSummary> {
+  return prisma.$transaction((tx) => upsertSeedData(tx));
 }
