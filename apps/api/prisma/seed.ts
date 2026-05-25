@@ -1,7 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { config } from 'dotenv';
-import { seedDatabase } from '../src/prisma/seed-data';
+import { seedDatabase } from './data/seed-data';
 
 const appEnv =
   process.env['APP_ENV'] ??

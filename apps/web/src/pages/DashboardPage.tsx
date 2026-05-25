@@ -1,435 +1,336 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { apiGet, apiPost } from '../api/client'
-import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
+import { apiGet } from '../api/client'
 import './DashboardPage.css'
 
-const initialRows: FormulaRow[] = [
-  { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
-  { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
-]
-
-const kolmarForms = [
-  '츄어블 정제',
-  '이중 제형 정제',
-  '미니/멀티 정제',
-  '쿨멜팅 분말',
-  '크런치 분말',
-  '팝핑 분말',
-  '스틱 포장',
-  'Multi PTP',
-]
-
-const dosageFormLabels: Record<string, string> = {
-  tablet: '정제',
-  powder: '분말',
-}
-
-const localRecommendationNotice = 'API 연결 실패로 로컬 후보 초안을 표시합니다.'
-
-type DraftTryCandidate = {
-  title: string
-  objective: string
-  suggestedChanges: string[]
-  riskChecks: string[]
-}
-
-type SafetySignal = {
-  type: string
-  label: string
-  severity: 'warning' | 'caution' | 'info'
-  message: string
-  evidenceLevel: string
-  relatedIngredients: string[]
-}
-
-type DraftTryRecommendation = {
-  projectName: string
-  safetyNotice: string
-  safetySignals?: SafetySignal[]
-  candidates: DraftTryCandidate[]
-}
-
-type FormulaIngredientInput = {
-  ingredientName: string
-  amount: string | null
-  unit: string | null
-  ratio: string | null
-  note: string | null
-}
-
-type WorkflowMetrics = {
-  productCount: number
-  projectCount: number
-  tryCount: number
-  evidenceCount: number
-}
-
-type ApiProjectSummary = {
-  groups?: Array<{
-    tries?: unknown[]
+type ApiProductSummary = {
+  id: string
+  name: string
+  function?: string | null
+  createdAt?: string | null
+  dosageForm?: {
+    name?: string | null
+  } | null
+  formulas?: Array<{
+    ingredients?: unknown[]
   }>
 }
 
-type ApiImportJobSummary = {
-  rawRecords?: unknown[]
+type ApiProjectSummary = {
+  id: string
+  name: string
+  createdAt?: string | null
+  groups?: Array<{
+    id?: string
+    name?: string | null
+    tries?: ApiFormulaTrySummary[]
+  }>
 }
 
-const severityLabels: Record<SafetySignal['severity'], string> = {
-  warning: '강한 주의',
-  caution: '주의',
-  info: '검토',
+type ApiFormulaTrySummary = {
+  id: string
+  tryNumber: number
+  title?: string | null
+  status?: string | null
+  createdAt?: string | null
+  marks?: unknown[]
 }
 
-const emptyWorkflowMetrics: WorkflowMetrics = {
-  productCount: 0,
-  projectCount: 0,
-  tryCount: 0,
-  evidenceCount: 0,
+type DashboardData = {
+  products: ApiProductSummary[]
+  projects: ApiProjectSummary[]
 }
+
+type MetricTile = {
+  label: string
+  total: number
+  weekly: number
+}
+
+type PlannedTryItem = ApiFormulaTrySummary & {
+  projectId: string
+  projectName: string
+  groupName: string
+}
+
+const emptyDashboardData: DashboardData = {
+  products: [],
+  projects: [],
+}
+
+const plannedTryStatuses = new Set(['DRAFT', 'PLANNED'])
 
 export function DashboardPage() {
-  const [rows, setRows] = useState(initialRows)
-  const [groupName, setGroupName] = useState('')
-  const [targetFunction, setTargetFunction] = useState('')
-  const [dosageForm, setDosageForm] = useState('tablet')
-  const [workflowMetrics, setWorkflowMetrics] = useState(emptyWorkflowMetrics)
-  const [recommendation, setRecommendation] = useState<DraftTryRecommendation | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const metrics = toMetricTiles(workflowMetrics)
+  const [dashboardData, setDashboardData] = useState(emptyDashboardData)
+  const [isApiUnavailable, setIsApiUnavailable] = useState(false)
+  const weekRange = useMemo(() => getCurrentWeekRange(), [])
+  const plannedTries = useMemo(() => flattenPlannedTries(dashboardData.projects), [dashboardData])
+  const weeklyPlannedTries = plannedTries.filter((formulaTry) =>
+    isWithinRange(formulaTry.createdAt, weekRange),
+  )
+  const meaningfulTryCount = plannedTries.filter((formulaTry) => (formulaTry.marks?.length ?? 0) > 0)
+    .length
+  const metrics: MetricTile[] = [
+    {
+      label: '등록 제품',
+      total: dashboardData.products.length,
+      weekly: countWithinRange(dashboardData.products, weekRange),
+    },
+    {
+      label: '진행 프로젝트',
+      total: dashboardData.projects.length,
+      weekly: countWithinRange(dashboardData.projects, weekRange),
+    },
+    {
+      label: '계획 Try',
+      total: plannedTries.length,
+      weekly: weeklyPlannedTries.length,
+    },
+  ]
+  const recentProducts = sortByCreatedAt(dashboardData.products).slice(0, 5)
+  const recentProjects = sortByCreatedAt(dashboardData.projects).slice(0, 5)
 
   useEffect(() => {
     let isActive = true
 
-    async function loadWorkflowMetrics() {
-      const [products, projects, importJobs] = await Promise.all([
-        apiGet<unknown[]>('/products').catch(() => []),
-        apiGet<ApiProjectSummary[]>('/projects').catch(() => []),
-        apiGet<ApiImportJobSummary[]>('/evidence/import-jobs').catch(() => []),
-      ])
+    async function loadDashboardData() {
+      try {
+        const [products, projects] = await Promise.all([
+          apiGet<ApiProductSummary[]>('/products'),
+          apiGet<ApiProjectSummary[]>('/projects'),
+        ])
 
-      if (!isActive) {
-        return
+        if (!isActive) {
+          return
+        }
+
+        setDashboardData({ products, projects })
+        setIsApiUnavailable(false)
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setDashboardData(emptyDashboardData)
+        setIsApiUnavailable(true)
       }
-
-      setWorkflowMetrics({
-        productCount: products.length,
-        projectCount: projects.length,
-        tryCount: countProjectTries(projects),
-        evidenceCount: countRawEvidenceRecords(importJobs),
-      })
     }
 
-    void loadWorkflowMetrics()
+    void loadDashboardData()
 
     return () => {
       isActive = false
     }
   }, [])
 
-  async function handleCreateDraftTries() {
-    const payload = {
-      projectName: nullableText(groupName),
-      targetFunction: nullableText(targetFunction),
-      dosageForm: dosageFormLabels[dosageForm],
-      constraints: [],
-      evidenceContext: [],
-      sourceFormula: {
-        ingredients: rows
-          .map((row) => ({
-            ingredientName: row.ingredientName.trim(),
-            amount: nullableText(row.amount),
-            unit: nullableText(row.unit),
-            ratio: nullableText(row.ratio),
-            note: nullableText(row.note),
-          }))
-          .filter((row) => row.ingredientName.length > 0),
-      },
-    }
-
-    setIsGenerating(true)
-
-    try {
-      const result = await apiPost<DraftTryRecommendation, typeof payload>(
-        '/recommendations/draft-tries',
-        payload,
-      )
-      setRecommendation(result)
-    } catch {
-      setRecommendation(createLocalRecommendation(payload.sourceFormula.ingredients))
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
   return (
     <div className="dashboard-page">
       <section className="page-heading">
         <div>
-          <h2>연구 대시보드</h2>
-          <p>제품 자산, 신규 프로젝트, 배합 Try를 한 흐름에서 관리</p>
+          <h2>대시보드</h2>
+          <p>등록 제품, 진행 프로젝트, 계획 Try의 전체 현황과 이번 주 움직임</p>
         </div>
-        <button type="button" className="primary-dashboard-button">
-          신규 프로젝트
-        </button>
+        <div className="week-range" aria-label="이번 주 범위">
+          <span>전체</span>
+          <strong>이번 주 {formatDateRange(weekRange)}</strong>
+        </div>
       </section>
 
-      <section className="metric-grid" aria-label="업무 현황">
+      {isApiUnavailable ? (
+        <p className="dashboard-alert">API 연결 실패로 현황을 불러오지 못했습니다.</p>
+      ) : null}
+
+      <section className="metric-grid" aria-label="전체와 이번 주 현황">
         {metrics.map((metric) => (
-          <figure
-            aria-label={`${metric.label} ${metric.value}`}
+          <article
+            aria-label={`${metric.label} 전체 ${metric.total} 이번 주 ${metric.weekly}`}
             className="metric-tile"
             key={metric.label}
           >
-            <figcaption>{metric.label}</figcaption>
-            <strong>{metric.value}</strong>
-          </figure>
+            <span>{metric.label}</span>
+            <strong>{metric.total}</strong>
+            <em>이번 주 {metric.weekly}</em>
+          </article>
         ))}
       </section>
 
-      <section className="dashboard-grid">
-        <div className="dashboard-panel wide">
-          <FormulaInputTable rows={rows} onChange={setRows} />
-        </div>
-
-        <div className="dashboard-panel">
-          <div className="panel-heading">
-            <h3>고형제 제형</h3>
-            <span>Kolmar 특화</span>
-          </div>
-          <div className="tag-list">
-            {kolmarForms.map((form) => (
-              <span key={form}>{form}</span>
-            ))}
-          </div>
-        </div>
-
-        <div className="dashboard-panel">
-          <div className="panel-heading">
-            <h3>Try 기본값</h3>
-            <span>선택 입력</span>
-          </div>
-          <div className="try-defaults">
-            <label>
-              그룹명
-              <input
-                value={groupName}
-                onChange={(event) => setGroupName(event.target.value)}
-                placeholder="예: 신물 억제"
-              />
-            </label>
-            <label>
-              목표 기능
-              <input
-                value={targetFunction}
-                onChange={(event) => setTargetFunction(event.target.value)}
-                placeholder="예: 위 건강"
-              />
-            </label>
-            <label>
-              생성 개수
-              <input inputMode="numeric" placeholder="100" />
-            </label>
-            <label>
-              기준 제형
-              <select value={dosageForm} onChange={(event) => setDosageForm(event.target.value)}>
-                <option value="tablet">정제</option>
-                <option value="powder">분말</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              className="primary-dashboard-button"
-              onClick={handleCreateDraftTries}
-              disabled={isGenerating}
-            >
-              {isGenerating ? 'AI 후보 생성 중' : 'AI 후보 Try 생성'}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {recommendation ? (
-        <section className="recommendation-panel" aria-label="AI 후보 Try 초안">
-          <div className="panel-heading">
-            <div>
-              <h3>AI 후보 Try 초안</h3>
-              <p>{recommendation.projectName}</p>
-            </div>
-            <span>{recommendation.candidates.length}개 후보</span>
-          </div>
-          <p className="safety-notice">{recommendation.safetyNotice}</p>
-          {recommendation.safetySignals?.length ? (
-            <section className="safety-signal-panel">
-              <div className="safety-signal-heading">
-                <h4>안전/규제 신호</h4>
-                <span>{recommendation.safetySignals.length}개</span>
-              </div>
-              <div className="safety-signal-grid">
-                {recommendation.safetySignals.map((signal) => (
-                  <article className="safety-signal-card" data-severity={signal.severity} key={signal.type}>
-                    <div className="safety-signal-title">
-                      <strong>{signal.label}</strong>
-                      <span>{severityLabels[signal.severity]}</span>
-                    </div>
-                    <p>{signal.message}</p>
-                    <div className="signal-meta">
-                      <span>{signal.evidenceLevel}</span>
-                      {signal.relatedIngredients.map((ingredient) => (
-                        <span key={ingredient}>{ingredient}</span>
-                      ))}
-                    </div>
-                    <Link
-                      aria-label={`${signal.label} 근거 검색`}
-                      className="signal-evidence-link"
-                      to={toEvidenceSearchPath(signal)}
-                    >
-                      근거 검색
-                    </Link>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-          <div className="candidate-grid">
-            {recommendation.candidates.map((candidate) => (
-              <article className="candidate-card" key={candidate.title}>
-                <h4>{candidate.title}</h4>
-                <p>{candidate.objective}</p>
-                <div>
-                  <strong>변경 후보</strong>
-                  <ul>
-                    {candidate.suggestedChanges.map((change) => (
-                      <li key={change}>{change}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <strong>위험 확인</strong>
-                  <ul>
-                    {candidate.riskChecks.map((check) => (
-                      <li key={check}>{check}</li>
-                    ))}
-                  </ul>
-                </div>
-              </article>
-            ))}
+      <section className="dashboard-summary-grid">
+        <section className="dashboard-panel">
+          <PanelHeading title="최근 등록 제품" count={`${recentProducts.length}건`} />
+          <div className="dashboard-list">
+            {recentProducts.length ? (
+              recentProducts.map((product) => (
+                <Link
+                  aria-label={product.name}
+                  className="dashboard-list-item"
+                  key={product.id}
+                  to={`/products/${product.id}`}
+                >
+                  <strong>{product.name}</strong>
+                  <span>
+                    {product.dosageForm?.name ?? '제형 미입력'} · {product.function ?? '기능성 미입력'} · 원료{' '}
+                    {product.formulas?.[0]?.ingredients?.length ?? 0}개
+                  </span>
+                </Link>
+              ))
+            ) : (
+              <EmptyState text="등록 제품이 없습니다." />
+            )}
           </div>
         </section>
-      ) : null}
+
+        <section className="dashboard-panel">
+          <PanelHeading title="최근 생성 프로젝트" count={`${recentProjects.length}건`} />
+          <div className="dashboard-list">
+            {recentProjects.length ? (
+              recentProjects.map((project) => (
+                <Link
+                  aria-label={project.name}
+                  className="dashboard-list-item"
+                  key={project.id}
+                  to={`/projects/${project.id}`}
+                >
+                  <strong>{project.name}</strong>
+                  <span>
+                    그룹 {project.groups?.length ?? 0}개 · Try {countProjectTries(project)}개
+                  </span>
+                </Link>
+              ))
+            ) : (
+              <EmptyState text="진행 프로젝트가 없습니다." />
+            )}
+          </div>
+        </section>
+
+        <section className="dashboard-panel wide">
+          <PanelHeading title="이번 주 계획 Try" count={`${weeklyPlannedTries.length}건`} />
+          <div className="dashboard-table-wrap">
+            {weeklyPlannedTries.length ? (
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Try</th>
+                    <th>프로젝트</th>
+                    <th>그룹</th>
+                    <th>상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklyPlannedTries.map((formulaTry) => (
+                    <tr key={formulaTry.id}>
+                      <td>try#{formulaTry.tryNumber} {formulaTry.title ?? '제목 미입력'}</td>
+                      <td>
+                        <Link to={`/projects/${formulaTry.projectId}`}>{formulaTry.projectName}</Link>
+                      </td>
+                      <td>{formulaTry.groupName}</td>
+                      <td>{toTryStatusLabel(formulaTry.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <EmptyState text="이번 주 계획 Try가 없습니다." />
+            )}
+          </div>
+        </section>
+
+        <section className="dashboard-panel compact-panel">
+          <PanelHeading title="의미 있는 Try" count={`${meaningfulTryCount}건`} />
+          <p className="dashboard-note">마킹된 Try 기준입니다. 후보 검토는 프로젝트 상세에서 이어서 진행합니다.</p>
+        </section>
+      </section>
     </div>
   )
 }
 
-function nullableText(value: string) {
-  const normalized = value.trim()
-  return normalized ? normalized : null
-}
-
-function toMetricTiles(metrics: WorkflowMetrics) {
-  return [
-    { label: '등록 제품', value: String(metrics.productCount) },
-    { label: '진행 프로젝트', value: String(metrics.projectCount) },
-    { label: '계획 Try', value: String(metrics.tryCount) },
-    { label: '근거 자료', value: String(metrics.evidenceCount) },
-  ]
-}
-
-function countProjectTries(projects: ApiProjectSummary[]) {
-  return projects.reduce(
-    (projectTotal, project) =>
-      projectTotal +
-      (project.groups ?? []).reduce(
-        (groupTotal, group) => groupTotal + (group.tries?.length ?? 0),
-        0,
-      ),
-    0,
-  )
-}
-
-function countRawEvidenceRecords(importJobs: ApiImportJobSummary[]) {
-  return importJobs.reduce((total, job) => total + (job.rawRecords?.length ?? 0), 0)
-}
-
-function createLocalRecommendation(
-  ingredients: FormulaIngredientInput[],
-): DraftTryRecommendation {
-  const ingredientNames = ingredients.map((ingredient) => ingredient.ingredientName).join(', ') || '입력 원료'
-
-  return {
-    projectName: '로컬 후보 초안',
-    safetyNotice: localRecommendationNotice,
-    safetySignals: createLocalSafetySignals(ingredients),
-    candidates: [
-      {
-        title: '안정성 우선 로컬 후보',
-        objective: 'API 연결 전에도 독성, 상한, 상호작용 확인 흐름을 먼저 잡는다.',
-        suggestedChanges: [`입력 원료: ${ingredientNames}`, '증량은 보류하고 기준 함량부터 검토'],
-        riskChecks: ['일일 섭취량 상한', '원료 간 상호작용', '제형별 안정성'],
-      },
-    ],
-  }
-}
-
-function createLocalSafetySignals(ingredients: FormulaIngredientInput[]): SafetySignal[] {
-  const hasVitaminC = ingredients.some(isVitaminCInput)
-  const zincIngredient = ingredients.find((ingredient) => includesText(ingredient.ingredientName, '아연'))
-  const signals: SafetySignal[] = []
-
-  const vitaminCIngredient = ingredients.find(isVitaminCInput)
-  if (vitaminCIngredient) {
-    signals.push({
-      type: 'local-sensory-stability',
-      label: '관능/산미 안정성',
-      severity: 'caution',
-      message: '비타민 C 또는 산미 메모가 있어 맛과 색 변화 가능성 확인이 필요합니다.',
-      evidenceLevel: 'local-formulation-signal',
-      relatedIngredients: [vitaminCIngredient.ingredientName],
-    })
-  }
-
-  if (zincIngredient) {
-    signals.push({
-      type: 'local-upper-intake-review',
-      label: '상한 섭취량 검토',
-      severity: 'warning',
-      message: '아연은 함량 입력 후 일일 섭취량 상한 확인이 필요합니다.',
-      evidenceLevel: 'local-rule-of-thumb',
-      relatedIngredients: [zincIngredient.ingredientName],
-    })
-  }
-
-  if (hasVitaminC && zincIngredient) {
-    signals.push({
-      type: 'local-combination-review',
-      label: '원료 조합 검토',
-      severity: 'info',
-      message: '비타민 C와 아연 조합은 함량 변화 시 맛, 위장 부담, 표시 기준을 함께 검토합니다.',
-      evidenceLevel: 'local-internal-review',
-      relatedIngredients: ['비타민 C', '아연'],
-    })
-  }
-
-  return signals
-}
-
-function isVitaminCInput(ingredient: FormulaIngredientInput) {
+function PanelHeading({ title, count }: { title: string; count: string }) {
   return (
-    includesText(ingredient.ingredientName, '비타민 c') ||
-    includesText(ingredient.ingredientName, 'vitamin c') ||
-    includesText(ingredient.note, '산미')
+    <div className="panel-heading">
+      <h3>{title}</h3>
+      <span>{count}</span>
+    </div>
   )
 }
 
-function includesText(value: string | null, keyword: string) {
-  return value?.toLowerCase().includes(keyword.toLowerCase()) ?? false
+function EmptyState({ text }: { text: string }) {
+  return <p className="dashboard-empty">{text}</p>
 }
 
-function toEvidenceSearchPath(signal: SafetySignal) {
-  const query = signal.relatedIngredients
-    .map((ingredient) => ingredient.trim())
-    .filter(Boolean)
-    .join(' ')
+function getCurrentWeekRange() {
+  const now = new Date()
+  const start = new Date(now)
+  const day = start.getDay()
+  const diffToMonday = day === 0 ? -6 : 1 - day
+  start.setDate(start.getDate() + diffToMonday)
+  start.setHours(0, 0, 0, 0)
 
-  return `/knowledge?q=${encodeURIComponent(query || signal.label)}`
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+
+  return { start, end }
+}
+
+function formatDateRange(range: { start: Date; end: Date }) {
+  return `${formatDate(range.start)} - ${formatDate(range.end)}`
+}
+
+function formatDate(date: Date) {
+  return `${date.getFullYear()}.${padDatePart(date.getMonth() + 1)}.${padDatePart(date.getDate())}`
+}
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+function countWithinRange(items: Array<{ createdAt?: string | null }>, range: { start: Date; end: Date }) {
+  return items.filter((item) => isWithinRange(item.createdAt, range)).length
+}
+
+function isWithinRange(value: string | null | undefined, range: { start: Date; end: Date }) {
+  if (!value) {
+    return false
+  }
+
+  const date = new Date(value)
+  return date >= range.start && date <= range.end
+}
+
+function sortByCreatedAt<T extends { createdAt?: string | null }>(items: T[]) {
+  return [...items].sort((left, right) => getTime(right.createdAt) - getTime(left.createdAt))
+}
+
+function getTime(value: string | null | undefined) {
+  return value ? new Date(value).getTime() : 0
+}
+
+function flattenPlannedTries(projects: ApiProjectSummary[]): PlannedTryItem[] {
+  return projects.flatMap((project) =>
+    (project.groups ?? []).flatMap((group) =>
+      (group.tries ?? [])
+        .filter((formulaTry) => plannedTryStatuses.has(formulaTry.status ?? ''))
+        .map((formulaTry) => ({
+          ...formulaTry,
+          projectId: project.id,
+          projectName: project.name,
+          groupName: group.name ?? '그룹명 미입력',
+        })),
+    ),
+  )
+}
+
+function countProjectTries(project: ApiProjectSummary) {
+  return (project.groups ?? []).reduce((total, group) => total + (group.tries?.length ?? 0), 0)
+}
+
+function toTryStatusLabel(status: string | null | undefined) {
+  if (status === 'PLANNED') {
+    return '계획'
+  }
+
+  if (status === 'DRAFT') {
+    return '초안'
+  }
+
+  return status ?? '상태 미입력'
 }

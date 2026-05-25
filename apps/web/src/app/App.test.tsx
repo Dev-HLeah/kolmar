@@ -27,6 +27,6 @@ describe('App shell', () => {
 
     expect(screen.getByRole('combobox', { name: '접근 역할' })).toHaveValue('viewer')
     expect(screen.queryByRole('link', { name: '운영 로그' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '연구 대시보드' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '대시보드' })).toBeInTheDocument()
   })
 })
