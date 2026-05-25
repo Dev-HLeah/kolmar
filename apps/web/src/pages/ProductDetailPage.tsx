@@ -1,18 +1,40 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { apiGet } from '../api/client'
-import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
+import type { FormEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { apiDelete, apiGet, apiPatch } from '../api/client'
 import './WorkflowPages.css'
+
+type ProductStatus = 'RELEASED' | 'PENDING_RELEASE' | 'UNDER_REVIEW' | 'DISCONTINUED'
 
 type ProductSummary = {
   name: string
+  headline: string
   description: string
+  referenceNote: string
+  status: ProductStatus
+}
+
+type MetadataDraft = {
+  description: string
+  referenceNote: string
+  status: ProductStatus
+}
+
+type FormulaRow = {
+  ingredientName: string
+  amount: string
+  unit: string
+  ratio: string
+  role: string
 }
 
 type ApiProduct = {
   id: string
   name: string
   function?: string | null
+  description?: string | null
+  referenceNote?: string | null
+  status?: ProductStatus | null
   dosageForm?: {
     name?: string | null
   } | null
@@ -70,15 +92,16 @@ type FormulationSignal = {
 }
 
 const referenceRows: FormulaRow[] = [
-  { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '', note: '산미' },
-  { ingredientName: '아연', amount: '', unit: 'mg', ratio: '', note: '선택값' },
+  { ingredientName: '비타민 C', amount: '500', unit: 'mg', ratio: '', role: '산미' },
+  { ingredientName: '아연', amount: '', unit: 'mg', ratio: '', role: '선택값' },
 ]
-
-const emptyRow: FormulaRow = { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' }
 
 const referenceSummary: ProductSummary = {
   name: '콜마 고형제 기준 처방',
+  headline: '위 건강 · 츄어블 정제 · Multi PTP',
   description: '기존 제품 배합 정보를 기준 자산으로 관리',
+  referenceNote: '',
+  status: 'UNDER_REVIEW',
 }
 
 const fallbackNotice = 'API 연결 실패로 샘플 기준 처방을 표시합니다.'
@@ -137,16 +160,27 @@ const sampleFormulationGuidance: FormulationGuidance = {
 }
 
 export function ProductDetailPage() {
+  const navigate = useNavigate()
   const { productId } = useParams()
   const [summary, setSummary] = useState(referenceSummary)
+  const [metadataDraft, setMetadataDraft] = useState<MetadataDraft>({
+    description: referenceSummary.description,
+    referenceNote: referenceSummary.referenceNote,
+    status: referenceSummary.status,
+  })
   const [rows, setRows] = useState(referenceRows)
   const [notice, setNotice] = useState('')
+  const [saveNotice, setSaveNotice] = useState('')
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deletePhrase, setDeletePhrase] = useState('')
   const [similarRecommendations, setSimilarRecommendations] = useState<
     SimilarFormulaRecommendation[]
   >([])
   const [similarNotice, setSimilarNotice] = useState('')
   const [formulationGuidance, setFormulationGuidance] = useState<FormulationGuidance | null>(null)
   const [formulationNotice, setFormulationNotice] = useState('')
+
+  const statusLabel = useMemo(() => toStatusLabel(summary.status), [summary.status])
 
   useEffect(() => {
     if (!productId) {
@@ -163,7 +197,14 @@ export function ProductDetailPage() {
           return
         }
 
-        setSummary(toProductSummary(product))
+        const nextSummary = toProductSummary(product)
+
+        setSummary(nextSummary)
+        setMetadataDraft({
+          description: nextSummary.description,
+          referenceNote: nextSummary.referenceNote,
+          status: nextSummary.status,
+        })
         setRows(toFormulaRows(product))
         setNotice('')
 
@@ -209,6 +250,11 @@ export function ProductDetailPage() {
       } catch {
         if (isActive) {
           setSummary(referenceSummary)
+          setMetadataDraft({
+            description: referenceSummary.description,
+            referenceNote: referenceSummary.referenceNote,
+            status: referenceSummary.status,
+          })
           setRows(referenceRows)
           setNotice(fallbackNotice)
           setSimilarRecommendations(sampleSimilarRecommendations)
@@ -226,22 +272,163 @@ export function ProductDetailPage() {
     }
   }, [productId])
 
+  async function handleSaveMetadata(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!productId) {
+      return
+    }
+
+    setSaveNotice('')
+    const updatedProduct = await apiPatch<ApiProduct, MetadataDraft>(`/products/${productId}`, {
+      description: metadataDraft.description,
+      referenceNote: metadataDraft.referenceNote,
+      status: metadataDraft.status,
+    })
+    const nextSummary = toProductSummary(updatedProduct)
+
+    setSummary(nextSummary)
+    setMetadataDraft({
+      description: nextSummary.description,
+      referenceNote: nextSummary.referenceNote,
+      status: nextSummary.status,
+    })
+    setSaveNotice('제품 정보가 저장됐습니다.')
+  }
+
+  async function handleSoftDelete() {
+    if (!productId || deletePhrase !== '삭제합니다') {
+      return
+    }
+
+    await apiDelete(`/products/${productId}`)
+    navigate('/products')
+  }
+
+  function handleBackToList() {
+    navigate('/products', { state: { restoreProductsList: true } })
+  }
+
+  function focusSimilarProducts() {
+    document.getElementById('similar-formulas')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   return (
     <div className="workflow-page">
+      <button type="button" className="back-button" onClick={handleBackToList}>
+        제품 목록으로 돌아가기
+      </button>
       <section className="page-heading">
         <div>
           <h2>{summary.name}</h2>
-          <p>{summary.description}</p>
+          <p>{summary.headline}</p>
         </div>
-        {productId ? (
-          <Link className="workflow-primary-link" to={`/projects?sourceProductId=${productId}`}>
-            이 제품으로 프로젝트 시작
-          </Link>
-        ) : null}
+        <div className="heading-actions">
+          <span className="status-pill">{statusLabel}</span>
+          {productId ? (
+            <Link className="workflow-primary-link" to={`/projects?sourceProductId=${productId}`}>
+              이 제품으로 프로젝트 시작
+            </Link>
+          ) : null}
+        </div>
       </section>
       {notice ? <p className="local-notice">{notice}</p> : null}
-      <FormulaInputTable rows={rows} onChange={setRows} />
-      <section className="workflow-panel">
+
+      <section className="product-detail-grid">
+        <section className="workflow-panel">
+          <div className="panel-heading compact">
+            <h3>제품 배합 정보</h3>
+            <button type="button" className="secondary-button" onClick={focusSimilarProducts}>
+              유사 배합 제품
+            </button>
+          </div>
+          <div className="workflow-table-wrap">
+            <table className="workflow-table">
+              <thead>
+                <tr>
+                  <th>원료명</th>
+                  <th>함량</th>
+                  <th>단위</th>
+                  <th>비율</th>
+                  <th>역할</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={`${row.ingredientName}-${index}`}>
+                    <td>{row.ingredientName || '-'}</td>
+                    <td>{row.amount || '-'}</td>
+                    <td>{row.unit || '-'}</td>
+                    <td>{row.ratio || '-'}</td>
+                    <td>{row.role || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <form className="workflow-panel" onSubmit={handleSaveMetadata}>
+          <div className="panel-heading compact">
+            <h3>제품 관리 정보</h3>
+            <span>수정 가능</span>
+          </div>
+          <div className="form-grid single-column">
+            <label>
+              제품 설명
+              <textarea
+                value={metadataDraft.description}
+                onChange={(event) =>
+                  setMetadataDraft((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              참고 사항
+              <textarea
+                value={metadataDraft.referenceNote}
+                onChange={(event) =>
+                  setMetadataDraft((current) => ({
+                    ...current,
+                    referenceNote: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              상태
+              <select
+                value={metadataDraft.status}
+                onChange={(event) =>
+                  setMetadataDraft((current) => ({
+                    ...current,
+                    status: event.target.value as ProductStatus,
+                  }))
+                }
+              >
+                <option value="RELEASED">출시</option>
+                <option value="PENDING_RELEASE">출시 대기</option>
+                <option value="UNDER_REVIEW">검수중</option>
+                <option value="DISCONTINUED">판매 중단</option>
+              </select>
+            </label>
+          </div>
+          {saveNotice ? <p className="local-notice">{saveNotice}</p> : null}
+          <div className="form-actions">
+            <button type="button" className="danger-button" onClick={() => setIsDeleteOpen(true)}>
+              제품 삭제
+            </button>
+            <button type="submit" className="primary-dashboard-button">
+              제품 정보 저장
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="workflow-panel" id="similar-formulas">
         <div className="panel-heading compact">
           <h3>유사 배합 추천</h3>
           <span>{similarRecommendations.length}건</span>
@@ -303,6 +490,42 @@ export function ProductDetailPage() {
           <p className="empty-result">제형과 원료 정보가 쌓이면 초기 안정성 신호가 표시됩니다.</p>
         )}
       </section>
+
+      {isDeleteOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="workflow-panel confirm-modal" aria-label="제품 삭제 확인">
+            <div className="panel-heading compact">
+              <h3>제품 삭제</h3>
+              <span>소프트 삭제</span>
+            </div>
+            <p>삭제하려면 삭제합니다를 입력하세요.</p>
+            <label>
+              삭제 확인 문구
+              <input value={deletePhrase} onChange={(event) => setDeletePhrase(event.target.value)} />
+            </label>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setIsDeleteOpen(false)
+                  setDeletePhrase('')
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="danger-button"
+                disabled={deletePhrase !== '삭제합니다'}
+                onClick={handleSoftDelete}
+              >
+                삭제 실행
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -310,11 +533,14 @@ export function ProductDetailPage() {
 function toProductSummary(product: ApiProduct): ProductSummary {
   return {
     name: product.name,
-    description: [
+    headline: [
       product.function?.trim() || '기능성 미입력',
       product.dosageForm?.name?.trim() || '제형 미입력',
       product.packaging?.name?.trim() || '포장 미입력',
     ].join(' · '),
+    description: product.description?.trim() ?? '',
+    referenceNote: product.referenceNote?.trim() ?? '',
+    status: product.status ?? 'UNDER_REVIEW',
   }
 }
 
@@ -327,10 +553,10 @@ function toFormulaRows(product: ApiProduct): FormulaRow[] {
       amount: toFieldValue(ingredient.amount),
       unit: ingredient.unit?.trim() || 'mg',
       ratio: toFieldValue(ingredient.ratio),
-      note: ingredient.role?.trim() ?? '',
+      role: ingredient.role?.trim() ?? '',
     }))
 
-  return rows.length > 0 ? rows : [{ ...emptyRow }]
+  return rows.length > 0 ? rows : [{ ingredientName: '', amount: '', unit: '', ratio: '', role: '' }]
 }
 
 function toFieldValue(value?: string | number | null) {
@@ -342,7 +568,7 @@ function toFieldValue(value?: string | number | null) {
 }
 
 function formatMatchedIngredient(ingredient: SimilarFormulaIngredient) {
-  return `${ingredient.ingredientName} ${formatRatio(ingredient.targetRatio)}% → ${formatRatio(
+  return `${ingredient.ingredientName} ${formatRatio(ingredient.targetRatio)}% -> ${formatRatio(
     ingredient.candidateRatio,
   )}%`
 }
@@ -361,4 +587,15 @@ function toSeverityLabel(severity: string) {
   }
 
   return '검토'
+}
+
+function toStatusLabel(status: ProductStatus) {
+  const statusLabels: Record<ProductStatus, string> = {
+    RELEASED: '출시',
+    PENDING_RELEASE: '출시 대기',
+    UNDER_REVIEW: '검수중',
+    DISCONTINUED: '판매 중단',
+  }
+
+  return statusLabels[status]
 }

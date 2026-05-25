@@ -22,6 +22,20 @@
   gap: 14px;
 }
 
+.product-library-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.product-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.42fr);
+  gap: 14px;
+  align-items: start;
+}
+
 .workflow-panel {
   min-width: 0;
   border: 1px solid var(--line);
@@ -41,6 +55,10 @@
   padding: 16px;
 }
 
+.form-grid.single-column {
+  grid-template-columns: 1fr;
+}
+
 .form-grid label {
   display: grid;
   gap: 6px;
@@ -50,7 +68,41 @@
 }
 
 .form-grid input,
-.form-grid select {
+.form-grid select,
+.form-grid textarea {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.form-grid textarea {
+  min-height: 96px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.product-search-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.product-search-grid label,
+.confirm-modal label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.product-search-grid input,
+.confirm-modal input {
   min-height: 38px;
   width: 100%;
   padding: 0 10px;
@@ -69,6 +121,48 @@
   border-top: 1px solid var(--line);
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.back-button,
+.secondary-button,
+.danger-button {
+  min-height: 36px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.back-button,
+.secondary-button {
+  padding: 0 12px;
+  color: var(--text-muted);
+  border-color: var(--line);
+  background: #ffffff;
+}
+
+.back-button {
+  justify-self: start;
+}
+
+.danger-button {
+  padding: 0 12px;
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  color: #a79d99;
+  background: var(--surface-muted);
 }
 
 .workflow-table-wrap {
@@ -99,6 +193,34 @@
   color: var(--accent-strong);
   font-weight: 700;
   text-decoration: none;
+}
+
+.summary-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.summary-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.summary-list dt {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.summary-list dd {
+  margin: 0;
+  color: var(--heading);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
 }
 
 .try-add-form {
@@ -426,14 +548,41 @@
   font-weight: 700;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(17 24 21 / 44%);
+}
+
+.confirm-modal {
+  width: min(460px, 100%);
+  padding-bottom: 0;
+  box-shadow: 0 24px 60px rgb(17 24 21 / 24%);
+}
+
+.confirm-modal p,
+.confirm-modal label {
+  margin: 0 16px 16px;
+}
+
 @media (max-width: 980px) {
-  .workflow-grid {
+  .workflow-grid,
+  .product-library-layout,
+  .product-detail-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .product-search-grid {
     grid-template-columns: 1fr;
   }
 

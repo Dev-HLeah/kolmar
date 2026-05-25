@@ -1,61 +1,90 @@
-import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { apiGet, apiPost } from '../api/client'
-import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
+import { Link, useLocation } from 'react-router-dom'
+import { apiGet } from '../api/client'
 import './WorkflowPages.css'
 
-type ProductDraft = {
+type ProductStatus = 'RELEASED' | 'PENDING_RELEASE' | 'UNDER_REVIEW' | 'DISCONTINUED'
+
+type ProductRecord = {
   id: string
   name: string
   function: string
   dosageForm: string
-  ingredientCount: number
+  ingredientNames: string[]
+  status: ProductStatus
+}
+
+type ProductFilters = {
+  name: string
+  dosageForm: string
+  ingredient: string
 }
 
 type ApiProduct = {
   id: string
   name: string
   function?: string | null
+  status?: ProductStatus | null
   dosageForm?: {
     name?: string | null
   } | null
   formulas?: Array<{
-    ingredients?: unknown[]
+    ingredients?: Array<{
+      ingredient?: {
+        name?: string | null
+      } | null
+    }>
   }>
 }
 
-const initialRows: FormulaRow[] = [
-  { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' },
-]
+const productListStateKey = 'kolma:products-list-state'
 
-const seededProducts: ProductDraft[] = [
+const defaultFilters: ProductFilters = {
+  name: '',
+  dosageForm: '',
+  ingredient: '',
+}
+
+const seededProducts: ProductRecord[] = [
   {
     id: 'sample-1',
     name: '콜마 고형제 기준 처방',
     function: '위 건강',
     dosageForm: '츄어블 정제',
-    ingredientCount: 3,
+    ingredientNames: ['비타민 C', '아연', '마그네슘'],
+    status: 'UNDER_REVIEW',
   },
 ]
 
-const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
 const listFallbackNotice = 'API 연결 실패로 샘플 제품 목록을 표시합니다.'
 
 export function ProductsPage() {
-  const [name, setName] = useState('')
-  const [functionalClaim, setFunctionalClaim] = useState('')
-  const [target, setTarget] = useState('')
-  const [dosageForm, setDosageForm] = useState('정제')
-  const [packaging, setPackaging] = useState('스틱 포장')
-  const [rows, setRows] = useState(initialRows)
-  const [products, setProducts] = useState<ProductDraft[]>(seededProducts)
+  const location = useLocation()
+  const shouldRestoreList = Boolean(
+    (location.state as { restoreProductsList?: boolean } | null)?.restoreProductsList,
+  )
+  const [filters, setFilters] = useState<ProductFilters>(() =>
+    shouldRestoreList ? (readProductListState()?.filters ?? defaultFilters) : defaultFilters,
+  )
+  const [products, setProducts] = useState<ProductRecord[]>(seededProducts)
   const [notice, setNotice] = useState('')
 
-  const ingredientCount = useMemo(
-    () => rows.filter((row) => row.ingredientName.trim()).length,
-    [rows],
-  )
+  useEffect(() => {
+    if (shouldRestoreList) {
+      const savedState = readProductListState()
+
+      if (!savedState) {
+        return
+      }
+
+      window.setTimeout(() => {
+        window.scrollTo(0, savedState.scrollY)
+      }, 0)
+      return
+    }
+
+    window.sessionStorage.removeItem(productListStateKey)
+  }, [shouldRestoreList])
 
   useEffect(() => {
     let isActive = true
@@ -68,7 +97,7 @@ export function ProductsPage() {
           return
         }
 
-        setProducts(apiProducts.map((product) => toProductDraft(product)))
+        setProducts(apiProducts.map((product) => toProductRecord(product)))
         setNotice('')
       } catch {
         if (!isActive) {
@@ -87,59 +116,33 @@ export function ProductsPage() {
     }
   }, [])
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  const filteredProducts = useMemo(
+    () =>
+      products.filter((product) => {
+        const nameMatched = includesText(product.name, filters.name)
+        const dosageFormMatched = includesText(product.dosageForm, filters.dosageForm)
+        const ingredientMatched = includesText(product.ingredientNames.join(' '), filters.ingredient)
 
-    const draftProduct: ProductDraft = {
-      id: `draft-${products.length + 1}`,
-      name: name.trim() || '제품명 미입력',
-      function: functionalClaim.trim() || '기능성 미입력',
-      dosageForm,
-      ingredientCount,
-    }
-    const ingredients = rows
-      .filter((row) => row.ingredientName.trim())
-      .map((row) => ({
-        ingredientName: row.ingredientName.trim(),
-        amount: nullableText(row.amount),
-        unit: nullableText(row.unit),
-        ratio: nullableText(row.ratio),
-        note: nullableText(row.note),
-      }))
+        return nameMatched && dosageFormMatched && ingredientMatched
+      }),
+    [filters, products],
+  )
 
-    try {
-      const createdProduct = await apiPost<
-        ApiProduct,
-        {
-          name: string
-          target: string | null
-          function: string | null
-          dosageFormName: string
-          packagingName: string
-          formulaVersion: string
-          ingredients: typeof ingredients
-        }
-      >('/products', {
-        name: draftProduct.name,
-        target: nullableText(target),
-        function: nullableText(functionalClaim),
-        dosageFormName: dosageForm,
-        packagingName: packaging,
-        formulaVersion: 'v1',
-        ingredients,
-      })
+  function updateFilter(key: keyof ProductFilters, value: string) {
+    setFilters((current) => ({
+      ...current,
+      [key]: value,
+    }))
+  }
 
-      setProducts((current) => [toProductDraft(createdProduct, draftProduct), ...current])
-      setNotice('')
-    } catch {
-      setProducts((current) => [draftProduct, ...current])
-      setNotice(localOnlyNotice)
-    }
-
-    setName('')
-    setFunctionalClaim('')
-    setTarget('')
-    setRows(initialRows)
+  function saveListState() {
+    window.sessionStorage.setItem(
+      productListStateKey,
+      JSON.stringify({
+        filters,
+        scrollY: window.scrollY,
+      }),
+    )
   }
 
   return (
@@ -147,109 +150,162 @@ export function ProductsPage() {
       <section className="page-heading">
         <div>
           <h2>제품/처방</h2>
-          <p>기존 제품 원료와 배합 정보를 등록하고 신규 프로젝트의 기준으로 사용</p>
+          <p>등록된 완제품 처방을 검색하고 신규 프로젝트의 기준으로 사용</p>
         </div>
       </section>
 
-      <section className="workflow-grid">
-        <form className="workflow-panel" onSubmit={handleSubmit}>
+      <section className="product-library-layout">
+        <section className="workflow-panel product-library-panel">
           <div className="panel-heading compact">
-            <h3>제품 기본 정보</h3>
-            <span>등록</span>
+            <h3>등록 제품</h3>
+            <span>{filteredProducts.length}건</span>
           </div>
-          <div className="form-grid">
+          <div className="product-search-grid">
             <label>
-              제품명
-              <input value={name} onChange={(event) => setName(event.target.value)} />
-            </label>
-            <label>
-              기능성
+              제품명 검색
               <input
-                value={functionalClaim}
-                onChange={(event) => setFunctionalClaim(event.target.value)}
+                value={filters.name}
+                onChange={(event) => updateFilter('name', event.target.value)}
+                placeholder="제품명"
               />
             </label>
             <label>
-              대상
-              <input value={target} onChange={(event) => setTarget(event.target.value)} />
+              제형 검색
+              <input
+                value={filters.dosageForm}
+                onChange={(event) => updateFilter('dosageForm', event.target.value)}
+                placeholder="정제, 츄어블"
+              />
             </label>
             <label>
-              제형
-              <select value={dosageForm} onChange={(event) => setDosageForm(event.target.value)}>
-                <option value="정제">정제</option>
-                <option value="츄어블 정제">츄어블 정제</option>
-                <option value="이중 제형 정제">이중 제형 정제</option>
-                <option value="분말">분말</option>
-                <option value="쿨멜팅 분말">쿨멜팅 분말</option>
-              </select>
-            </label>
-            <label>
-              포장
-              <select value={packaging} onChange={(event) => setPackaging(event.target.value)}>
-                <option value="스틱 포장">스틱 포장</option>
-                <option value="Multi PTP">Multi PTP</option>
-                <option value="PTP">PTP</option>
-              </select>
+              원료 검색
+              <input
+                value={filters.ingredient}
+                onChange={(event) => updateFilter('ingredient', event.target.value)}
+                placeholder="비타민 C, 아연"
+              />
             </label>
           </div>
-          <FormulaInputTable rows={rows} onChange={setRows} />
           {notice ? <p className="local-notice">{notice}</p> : null}
-          <div className="form-actions">
-            <span>{target || packaging}</span>
-            <button type="submit" className="primary-dashboard-button">
-              제품 등록
-            </button>
-          </div>
-        </form>
-
-        <section className="workflow-panel">
-          <div className="panel-heading compact">
-            <h3>등록 제품</h3>
-            <span>{products.length}건</span>
-          </div>
           <div className="workflow-table-wrap">
             <table className="workflow-table">
               <thead>
                 <tr>
                   <th>제품명</th>
                   <th>제형</th>
-                  <th>기능성</th>
                   <th>원료</th>
+                  <th>상태</th>
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => (
+                {filteredProducts.map((product) => (
                   <tr key={product.id}>
                     <td>
-                      <Link to={`/products/${product.id}`}>{product.name}</Link>
+                      <Link to={`/products/${product.id}`} onClick={saveListState}>
+                        {product.name}
+                      </Link>
                     </td>
                     <td>{product.dosageForm}</td>
-                    <td>{product.function}</td>
-                    <td>{product.ingredientCount}개</td>
+                    <td>{formatIngredientNames(product.ingredientNames)}</td>
+                    <td>{toStatusLabel(product.status)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {filteredProducts.length === 0 ? (
+            <p className="empty-result">검색 조건에 맞는 등록 제품이 없습니다.</p>
+          ) : null}
         </section>
+
+        <aside className="workflow-panel product-context-panel">
+          <div className="panel-heading compact">
+            <h3>제품 기준 작업</h3>
+            <span>완제품</span>
+          </div>
+          <dl className="summary-list">
+            <div>
+              <dt>전체 등록 제품</dt>
+              <dd>{products.length}건</dd>
+            </div>
+            <div>
+              <dt>검색 결과</dt>
+              <dd>{filteredProducts.length}건</dd>
+            </div>
+            <div>
+              <dt>수정 가능 정보</dt>
+              <dd>제품 설명, 참고 사항, 상태</dd>
+            </div>
+          </dl>
+        </aside>
       </section>
     </div>
   )
 }
 
-function nullableText(value?: string | null) {
-  const normalized = value?.trim()
-  return normalized ? normalized : null
+function readProductListState() {
+  const rawState = window.sessionStorage.getItem(productListStateKey)
+
+  if (!rawState) {
+    return null
+  }
+
+  try {
+    const parsedState = JSON.parse(rawState) as {
+      filters?: Partial<ProductFilters>
+      scrollY?: number
+    }
+
+    return {
+      filters: {
+        ...defaultFilters,
+        ...parsedState.filters,
+      },
+      scrollY: parsedState.scrollY ?? 0,
+    }
+  } catch {
+    return null
+  }
 }
 
-function toProductDraft(product: ApiProduct, fallback?: ProductDraft): ProductDraft {
+function includesText(value: string, query: string) {
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+
+  if (!normalizedQuery) {
+    return true
+  }
+
+  return value.toLocaleLowerCase().includes(normalizedQuery)
+}
+
+function formatIngredientNames(ingredientNames: string[]) {
+  return ingredientNames.length > 0 ? ingredientNames.join(', ') : '원료 미입력'
+}
+
+function toProductRecord(product: ApiProduct): ProductRecord {
   const createdFormula = product.formulas?.[0]
+  const ingredientNames =
+    createdFormula?.ingredients
+      ?.map((ingredient) => ingredient.ingredient?.name?.trim())
+      .filter((ingredientName): ingredientName is string => Boolean(ingredientName)) ?? []
 
   return {
     id: product.id,
     name: product.name,
-    function: product.function?.trim() || fallback?.function || '기능성 미입력',
-    dosageForm: product.dosageForm?.name?.trim() || fallback?.dosageForm || '제형 미입력',
-    ingredientCount: createdFormula?.ingredients?.length ?? fallback?.ingredientCount ?? 0,
+    function: product.function?.trim() || '기능성 미입력',
+    dosageForm: product.dosageForm?.name?.trim() || '제형 미입력',
+    ingredientNames,
+    status: product.status ?? 'UNDER_REVIEW',
   }
+}
+
+function toStatusLabel(status: ProductStatus) {
+  const statusLabels: Record<ProductStatus, string> = {
+    RELEASED: '출시',
+    PENDING_RELEASE: '출시 대기',
+    UNDER_REVIEW: '검수중',
+    DISCONTINUED: '판매 중단',
+  }
+
+  return statusLabels[status]
 }

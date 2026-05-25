@@ -32,6 +32,13 @@ enum TryMarkType {
   NEEDS_REVIEW
 }
 
+enum ProductStatus {
+  RELEASED
+  PENDING_RELEASE
+  UNDER_REVIEW
+  DISCONTINUED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -79,18 +86,24 @@ model PackagingOption {
 }
 
 model Product {
-  id           String           @id @default(cuid())
-  name         String
-  category     String?
-  target       String?
-  function     String?
-  dosageFormId String?
-  packagingId  String?
-  dosageForm   DosageForm?      @relation(fields: [dosageFormId], references: [id])
-  packaging    PackagingOption? @relation(fields: [packagingId], references: [id])
-  formulas     ProductFormula[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  name          String
+  category      String?
+  target        String?
+  function      String?
+  description   String?
+  referenceNote String?
+  status        ProductStatus    @default(UNDER_REVIEW)
+  deletedAt     DateTime?
+  dosageFormId  String?
+  packagingId   String?
+  dosageForm    DosageForm?      @relation(fields: [dosageFormId], references: [id])
+  packaging     PackagingOption? @relation(fields: [packagingId], references: [id])
+  formulas      ProductFormula[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([deletedAt])
 }
 
 model ProductFormula {

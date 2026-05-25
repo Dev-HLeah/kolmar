@@ -4,6 +4,7 @@ import {
   CreateFormulaIngredientDto,
   CreateProductDto,
 } from './dto/create-product.dto';
+import { UpdateProductMetadataDto } from './dto/update-product-metadata.dto';
 
 const productInclude = {
   dosageForm: true,
@@ -117,6 +118,9 @@ export class ProductsService {
 
   findProducts() {
     return this.prisma.product.findMany({
+      where: {
+        deletedAt: null,
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -125,8 +129,8 @@ export class ProductsService {
   }
 
   async findProductById(id: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
+    const product = await this.prisma.product.findFirst({
+      where: { id, deletedAt: null },
       include: productInclude,
     });
 
@@ -143,6 +147,7 @@ export class ProductsService {
     )) as unknown as ProductForSimilarity;
     const candidateProducts = (await this.prisma.product.findMany({
       where: {
+        deletedAt: null,
         id: {
           not: id,
         },
@@ -155,6 +160,74 @@ export class ProductsService {
     })) as unknown as ProductForSimilarity[];
 
     return toSimilarFormulaRecommendations(targetProduct, candidateProducts);
+  }
+
+  async updateProductMetadata(id: string, dto: UpdateProductMetadataDto) {
+    const currentProduct = await this.findProductById(id);
+    const data: {
+      description?: string | null;
+      referenceNote?: string | null;
+      status?: NonNullable<UpdateProductMetadataDto['status']>;
+    } = {};
+
+    if ('description' in dto) {
+      data.description = cleanNullableString(dto.description);
+    }
+
+    if ('referenceNote' in dto) {
+      data.referenceNote = cleanNullableString(dto.referenceNote);
+    }
+
+    if (dto.status) {
+      data.status = dto.status;
+    }
+
+    const product = await this.prisma.product.update({
+      where: { id },
+      data,
+      include: productInclude,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'PRODUCT_METADATA_UPDATED',
+        targetType: 'Product',
+        targetId: product.id,
+        summary: `제품 메타데이터 수정: ${currentProduct.name}`,
+        metadata: {
+          descriptionChanged: 'description' in dto,
+          referenceNoteChanged: 'referenceNote' in dto,
+          status: dto.status ?? null,
+        },
+      },
+    });
+
+    return product;
+  }
+
+  async softDeleteProduct(id: string) {
+    const currentProduct = await this.findProductById(id);
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+      include: productInclude,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'PRODUCT_SOFT_DELETED',
+        targetType: 'Product',
+        targetId: product.id,
+        summary: `제품 숨김 처리: ${currentProduct.name}`,
+        metadata: {
+          productName: currentProduct.name,
+        },
+      },
+    });
+
+    return product;
   }
 
   async findFormulationGuidance(id: string) {
@@ -228,6 +301,11 @@ export class ProductsService {
 function cleanString(value?: string | null) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function cleanNullableString(value?: string | null) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function cleanDecimal(value?: number | string | null) {

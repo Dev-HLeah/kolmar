@@ -6,7 +6,9 @@ describe('ProductsService', () => {
     product: {
       create: jest.Mock;
       findMany: jest.Mock;
+      findFirst: jest.Mock;
       findUnique: jest.Mock;
+      update: jest.Mock;
     };
     auditLog: {
       create: jest.Mock;
@@ -15,7 +17,9 @@ describe('ProductsService', () => {
     product: {
       create: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     auditLog: {
       create: jest.fn(),
@@ -100,7 +104,7 @@ describe('ProductsService', () => {
   });
 
   it('recommends similar formulas using ingredient ratio overlap', async () => {
-    prisma.product.findUnique.mockResolvedValue({
+    prisma.product.findFirst.mockResolvedValue({
       id: 'product-1',
       name: '기준 처방',
       formulas: [
@@ -171,6 +175,7 @@ describe('ProductsService', () => {
     ]);
     expect(prisma.product.findMany).toHaveBeenCalledWith({
       where: {
+        deletedAt: null,
         id: {
           not: 'product-1',
         },
@@ -183,8 +188,133 @@ describe('ProductsService', () => {
     });
   });
 
+  it('hides soft-deleted products from the product library', async () => {
+    prisma.product.findMany.mockResolvedValue([{ id: 'product-1' }]);
+
+    const result = await service.findProducts();
+
+    expect(result).toEqual([{ id: 'product-1' }]);
+    expect(prisma.product.findMany).toHaveBeenCalledWith({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: expect.any(Object),
+    });
+  });
+
+  it('loads product details only when the product is not soft-deleted', async () => {
+    const product = { id: 'product-1', name: '등록 제품' };
+    prisma.product.findFirst.mockResolvedValue(product);
+
+    const result = await service.findProductById('product-1');
+
+    expect(result).toBe(product);
+    expect(prisma.product.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+        deletedAt: null,
+      },
+      include: expect.any(Object),
+    });
+  });
+
+  it('updates only editable product metadata and status', async () => {
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'product-1',
+      name: '등록 제품',
+    });
+    prisma.product.update.mockResolvedValue({
+      id: 'product-1',
+      name: '등록 제품',
+      description: '섭취 편의성 개선',
+      referenceNote: '관능 테스트 필요',
+      status: 'RELEASED',
+    });
+
+    const result = await service.updateProductMetadata('product-1', {
+      description: '섭취 편의성 개선',
+      referenceNote: '관능 테스트 필요',
+      status: 'RELEASED',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        description: '섭취 편의성 개선',
+        referenceNote: '관능 테스트 필요',
+        status: 'RELEASED',
+      }),
+    );
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+      },
+      data: {
+        description: '섭취 편의성 개선',
+        referenceNote: '관능 테스트 필요',
+        status: 'RELEASED',
+      },
+      include: expect.any(Object),
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'PRODUCT_METADATA_UPDATED',
+        targetType: 'Product',
+        targetId: 'product-1',
+        summary: '제품 메타데이터 수정: 등록 제품',
+        metadata: {
+          descriptionChanged: true,
+          referenceNoteChanged: true,
+          status: 'RELEASED',
+        },
+      },
+    });
+  });
+
+  it('soft deletes a product without removing the database row', async () => {
+    prisma.product.findFirst.mockResolvedValue({
+      id: 'product-1',
+      name: '등록 제품',
+    });
+    prisma.product.update.mockResolvedValue({
+      id: 'product-1',
+      name: '등록 제품',
+      deletedAt: new Date('2026-05-25T00:00:00.000Z'),
+    });
+
+    const result = await service.softDeleteProduct('product-1');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'product-1',
+      }),
+    );
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+      },
+      data: {
+        deletedAt: expect.any(Date),
+      },
+      include: expect.any(Object),
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'PRODUCT_SOFT_DELETED',
+        targetType: 'Product',
+        targetId: 'product-1',
+        summary: '제품 숨김 처리: 등록 제품',
+        metadata: {
+          productName: '등록 제품',
+        },
+      },
+    });
+  });
+
   it('returns formulation guidance for Kolmar specialized solid forms', async () => {
-    prisma.product.findUnique.mockResolvedValue({
+    prisma.product.findFirst.mockResolvedValue({
       id: 'product-1',
       name: '츄어블 기준 처방',
       dosageForm: {
