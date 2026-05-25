@@ -1,76 +1,39 @@
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { apiDelete, apiGet, apiPatch, apiPost } from '../api/client'
+import { CustomSelect } from '../components/CustomSelect'
 import { FormulaInputTable, type FormulaRow } from '../components/FormulaInputTable'
 import './WorkflowPages.css'
 
 type TryRow = {
-  id: number
-  apiId?: string
+  id: string
+  tryNumber: number
   title: string
-  status: TryStatus
   dosageForm: string
-  manufacturingProcess: string
   memo: string
+  starred: boolean
   ingredients: FormulaRow[]
-  testResults: TryTestResultRow[]
-  marked: boolean
-  mark?: TryMarkRow
+  registeredProductId: string | null
 }
 
-type TryStatus =
-  | 'DRAFT'
-  | 'PLANNED'
-  | 'IN_PROGRESS'
-  | 'TESTED'
-  | 'CANDIDATE'
-  | 'FINAL_CANDIDATE'
-  | 'DISCARDED'
-  | 'ON_HOLD'
-
-type TryMarkType =
-  | 'PROMISING'
-  | 'ISSUE_FOUND'
-  | 'BASELINE_CANDIDATE'
-  | 'FINAL_CANDIDATE'
-  | 'DISCARDED'
-  | 'NEEDS_REVIEW'
-
-type TryMarkRow = {
-  type: TryMarkType
-  reason: string
-}
-
-type TryTestResultRow = {
-  id: string
-  testPurpose: string
-  measuredItem: string
-  measuredValue: string
-  unit: string
-  judgment: string
-  memo: string
-  createdAt?: string
-}
-
-type ExperimentGroupRow = {
-  id: string
+type ProjectMeta = {
   name: string
-  purpose: string
-  tries: TryRow[]
+  background: string
+  objective: string
+  sourceProductId: string | null
+  sourceProductName: string | null
 }
 
 type ApiFormulaTry = {
   id: string
   tryNumber: number
-  status?: TryStatus | null
   title?: string | null
   dosageForm?: string | null
-  manufacturingProcess?: string | null
   memo?: string | null
+  starred?: boolean
   ingredients?: ApiTryIngredient[]
-  testResults?: ApiTestResult[]
-  marks?: ApiTryMark[]
+  sourceProducts?: Array<{ id: string }>
 }
 
 type ApiTryIngredient = {
@@ -78,1264 +41,704 @@ type ApiTryIngredient = {
   unit?: string | null
   ratio?: string | number | null
   note?: string | null
-  ingredient?: {
-    name?: string | null
-  } | null
-}
-
-type ApiTryMark = {
-  id: string
-  type?: TryMarkType | null
-  reason?: string | null
-}
-
-type ApiTestResult = {
-  id: string
-  tryId: string
-  testPurpose?: string | null
-  measuredItem?: string | null
-  measuredValue?: string | number | null
-  unit?: string | null
-  judgment?: string | null
-  memo?: string | null
-  createdAt?: string | null
-}
-
-type ApiExperimentGroup = {
-  id: string
-  name: string
-  purpose?: string | null
-  tries?: ApiFormulaTry[]
+  ingredient?: { name?: string | null } | null
 }
 
 type ApiProject = {
   id: string
   name: string
-  goal?: string | null
-  function?: string | null
-  desiredForm?: string | null
-  groups?: ApiExperimentGroup[]
+  background?: string | null
+  objective?: string | null
+  sourceProductId?: string | null
+  tries?: ApiFormulaTry[]
 }
 
-type ApiCreatedProduct = {
+type ApiProduct = {
   id: string
   name: string
 }
 
-const sampleGroupId = 'sample-group'
-const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
-const fallbackNotice = 'API 연결 실패로 샘플 프로젝트를 표시합니다.'
+type DosageFormOption = {
+  id: string
+  name: string
+}
+
 const emptyFormulaRow: FormulaRow = { ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' }
-const tryStatusOptions: { value: TryStatus; label: string }[] = [
-  { value: 'DRAFT', label: '초안' },
-  { value: 'PLANNED', label: '테스트 예정' },
-  { value: 'IN_PROGRESS', label: '테스트 중' },
-  { value: 'TESTED', label: '테스트 완료' },
-  { value: 'CANDIDATE', label: '후보' },
-  { value: 'FINAL_CANDIDATE', label: '최종 후보' },
-  { value: 'DISCARDED', label: '폐기' },
-  { value: 'ON_HOLD', label: '보류' },
-]
-const tryStatusLabels = tryStatusOptions.reduce<Record<TryStatus, string>>(
-  (labels, option) => ({
-    ...labels,
-    [option.value]: option.label,
-  }),
-  {} as Record<TryStatus, string>,
-)
-const tryMarkOptions: { value: TryMarkType; label: string }[] = [
-  { value: 'PROMISING', label: '유망' },
-  { value: 'ISSUE_FOUND', label: '문제 발견' },
-  { value: 'BASELINE_CANDIDATE', label: '기준 처방 후보' },
-  { value: 'FINAL_CANDIDATE', label: '최종 후보' },
-  { value: 'DISCARDED', label: '폐기' },
-  { value: 'NEEDS_REVIEW', label: '재검토 필요' },
-]
-const tryMarkLabels = tryMarkOptions.reduce<Record<TryMarkType, string>>(
-  (labels, option) => ({
-    ...labels,
-    [option.value]: option.label,
-  }),
-  {} as Record<TryMarkType, string>,
-)
 
-const initialTries: TryRow[] = [
-  {
-    id: 1,
-    apiId: 'sample-try-1',
-    title: '기준 처방',
-    status: 'DRAFT',
-    dosageForm: '정제',
-    manufacturingProcess: '',
-    memo: '',
-    ingredients: [{ ...emptyFormulaRow, ingredientName: '비타민 C', amount: '500', note: '산미' }],
-    testResults: [],
-    marked: false,
-  },
-  {
-    id: 2,
-    apiId: 'sample-try-2',
-    title: '신물 억제 후보',
-    status: 'DRAFT',
-    dosageForm: '',
-    manufacturingProcess: '',
-    memo: '',
-    ingredients: [{ ...emptyFormulaRow }],
-    testResults: [],
-    marked: false,
-  },
-  {
-    id: 3,
-    apiId: 'sample-try-3',
-    title: '맛 개선 후보',
-    status: 'DRAFT',
-    dosageForm: '',
-    manufacturingProcess: '',
-    memo: '',
-    ingredients: [{ ...emptyFormulaRow }],
-    testResults: [],
-    marked: false,
-  },
-  {
-    id: 4,
-    apiId: 'sample-try-4',
-    title: '정제 안정성 후보',
-    status: 'DRAFT',
-    dosageForm: '',
-    manufacturingProcess: '',
-    memo: '',
-    ingredients: [{ ...emptyFormulaRow }],
-    testResults: [],
-    marked: false,
-  },
-  {
-    id: 5,
-    apiId: 'sample-try-5',
-    title: '제조 공정 후보',
-    status: 'DRAFT',
-    dosageForm: '',
-    manufacturingProcess: '',
-    memo: '',
-    ingredients: [{ ...emptyFormulaRow }],
-    testResults: [],
-    marked: false,
-  },
-  {
-    id: 6,
-    apiId: 'sample-try-6',
-    title: '포장 적합성 후보',
-    status: 'DRAFT',
-    dosageForm: '',
-    manufacturingProcess: '',
-    memo: '',
-    ingredients: [{ ...emptyFormulaRow }],
-    testResults: [],
-    marked: false,
-  },
-]
+const localOnlyNotice = 'API 연결 실패로 로컬 화면에만 반영됐습니다.'
 
-const sampleProjectName = '신물 억제 고형제 개발'
-const sampleProjectDescription = '그룹별 try와 테스트 기록을 관리'
-const sampleGroupName = '신물 억제 그룹'
-const initialGroups: ExperimentGroupRow[] = [
-  {
-    id: sampleGroupId,
-    name: sampleGroupName,
-    purpose: '',
-    tries: initialTries,
-  },
-]
+type TryDraft = {
+  title: string
+  dosageForm: string
+  memo: string
+  ingredients: FormulaRow[]
+}
+
+function toTryDraft(tryRow: TryRow): TryDraft {
+  return {
+    title: tryRow.title,
+    dosageForm: tryRow.dosageForm,
+    memo: tryRow.memo,
+    ingredients: tryRow.ingredients.length > 0 ? tryRow.ingredients : [{ ...emptyFormulaRow }],
+  }
+}
+
+function isTryDraftDirty(draft: TryDraft, source: TryRow): boolean {
+  if (draft.title !== source.title) return true
+  if (draft.dosageForm !== source.dosageForm) return true
+  if (draft.memo !== source.memo) return true
+  if (draft.ingredients.length !== source.ingredients.length) return true
+  return draft.ingredients.some((row, i) => {
+    const orig = source.ingredients[i]
+    if (!orig) return true
+    return row.ingredientName !== orig.ingredientName ||
+      row.amount !== orig.amount ||
+      row.unit !== orig.unit ||
+      row.ratio !== orig.ratio ||
+      row.note !== orig.note
+  })
+}
 
 export function ProjectDetailPage() {
   const { projectId } = useParams()
-  const [projectName, setProjectName] = useState(sampleProjectName)
-  const [projectDescription, setProjectDescription] = useState(sampleProjectDescription)
-  const [groups, setGroups] = useState<ExperimentGroupRow[]>(initialGroups)
-  const [activeGroupId, setActiveGroupId] = useState(sampleGroupId)
-  const [tryFilter, setTryFilter] = useState<'all' | 'marked'>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | TryStatus>('all')
-  const [markType, setMarkType] = useState<TryMarkType>('PROMISING')
-  const [markReason, setMarkReason] = useState('')
-  const [markedTypeFilter, setMarkedTypeFilter] = useState<'all' | TryMarkType>('all')
-  const [groupTitle, setGroupTitle] = useState('')
-  const [groupPurpose, setGroupPurpose] = useState('')
-  const [tryTitle, setTryTitle] = useState('')
-  const [editTryNumber, setEditTryNumber] = useState('1')
-  const [editTitle, setEditTitle] = useState(initialTries[0].title)
-  const [editStatus, setEditStatus] = useState<TryStatus>(initialTries[0].status)
-  const [editDosageForm, setEditDosageForm] = useState(initialTries[0].dosageForm)
-  const [editManufacturingProcess, setEditManufacturingProcess] = useState(
-    initialTries[0].manufacturingProcess,
-  )
-  const [editMemo, setEditMemo] = useState(initialTries[0].memo)
-  const [editFormulaRows, setEditFormulaRows] = useState<FormulaRow[]>(initialTries[0].ingredients)
-  const [resultTryNumber, setResultTryNumber] = useState('')
-  const [testPurpose, setTestPurpose] = useState('')
-  const [measuredItem, setMeasuredItem] = useState('')
-  const [measuredValue, setMeasuredValue] = useState('')
-  const [unit, setUnit] = useState('')
-  const [judgment, setJudgment] = useState('')
-  const [resultMemo, setResultMemo] = useState('')
-  const [productTryNumber, setProductTryNumber] = useState('')
-  const [productName, setProductName] = useState('')
-  const [productPackagingName, setProductPackagingName] = useState('')
-  const [lastCreatedProduct, setLastCreatedProduct] = useState<ApiCreatedProduct | null>(null)
+  const navigate = useNavigate()
+
+  const [projectMeta, setProjectMeta] = useState<ProjectMeta>({
+    name: '프로젝트 로딩 중...',
+    background: '',
+    objective: '',
+    sourceProductId: null,
+    sourceProductName: null,
+  })
+  const [tries, setTries] = useState<TryRow[]>([])
+  const [selectedTryId, setSelectedTryId] = useState<string | null>(null)
+  const [tryDraft, setTryDraft] = useState<TryDraft | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [notice, setNotice] = useState('')
-  const activeGroup = useMemo(
-    () => groups.find((group) => group.id === activeGroupId) ?? groups[0],
-    [activeGroupId, groups],
-  )
-  const tries = useMemo(() => activeGroup?.tries ?? [], [activeGroup])
-  const markedTryRows = useMemo(
-    () =>
-      groups.flatMap((group) =>
-        group.tries
-          .filter((item) => item.marked)
-          .map((item) => ({
-            groupId: group.id,
-            groupName: group.name,
-            tryRow: item,
-          })),
-      ),
-    [groups],
-  )
-  const markedCount = markedTryRows.length
-  const visibleMarkedTryRows = useMemo(
-    () =>
-      markedTryRows.filter(
-        ({ tryRow }) => markedTypeFilter === 'all' || tryRow.mark?.type === markedTypeFilter,
-      ),
-    [markedTryRows, markedTypeFilter],
-  )
-  const visibleTries = useMemo(
-    () =>
-      tries.filter((item) => {
-        const matchesStatus = statusFilter === 'all' || item.status === statusFilter
-        const matchesMark = tryFilter === 'all' || item.marked
 
-        return matchesStatus && matchesMark
-      }),
-    [statusFilter, tries, tryFilter],
-  )
-  const selectedEditTry = useMemo(
-    () => tries.find((item) => String(item.id) === editTryNumber) ?? tries[0],
-    [editTryNumber, tries],
-  )
-  const effectiveResultTryNumber =
-    tries.find((item) => String(item.id) === resultTryNumber) ?? tries[0]
-  const selectedResultTry = useMemo(
-    () => tries.find((item) => item.id === effectiveResultTryNumber?.id),
-    [effectiveResultTryNumber, tries],
-  )
-  const effectiveProductTryNumber =
-    tries.find((item) => String(item.id) === productTryNumber) ?? tries[0]
-  const selectedProductTry = useMemo(
-    () => tries.find((item) => item.id === effectiveProductTryNumber?.id),
-    [effectiveProductTryNumber, tries],
-  )
-  const testResultRows = useMemo(
-    () =>
-      tries.flatMap((formulaTry) =>
-        formulaTry.testResults.map((result) => ({
-          ...result,
-          tryNumber: formulaTry.id,
-        })),
-      ),
-    [tries],
-  )
-  const maxTryNumber = useMemo(
-    () => tries.reduce((highest, item) => Math.max(highest, item.id), 0),
-    [tries],
-  )
-  const trySummary = tries.length > 0 ? `try#1-${maxTryNumber}` : 'try 없음'
+  const [metaDraft, setMetaDraft] = useState({ background: '', objective: '' })
+  const [savedMeta, setSavedMeta] = useState({ background: '', objective: '' })
+  const [isSavingMeta, setIsSavingMeta] = useState(false)
 
-  const syncEditForm = useCallback((targetTry?: TryRow) => {
-    if (!targetTry) {
-      setEditTitle('')
-      setEditStatus('DRAFT')
-      setEditDosageForm('')
-      setEditManufacturingProcess('')
-      setEditMemo('')
-      setEditFormulaRows([{ ...emptyFormulaRow }])
-      return
+  const [productName, setProductName] = useState('')
+  const [isRegisteringProduct, setIsRegisteringProduct] = useState(false)
+  const [showRegisterConfirm, setShowRegisterConfirm] = useState(false)
+
+  const [dosageFormOptions, setDosageFormOptions] = useState<DosageFormOption[]>([])
+
+  const selectedTry = useMemo(
+    () => tries.find((t) => t.id === selectedTryId) ?? null,
+    [tries, selectedTryId],
+  )
+
+  const isLocked = selectedTry?.registeredProductId != null
+
+  const isDirty = useMemo(
+    () => !isLocked && tryDraft !== null && selectedTry !== null && isTryDraftDirty(tryDraft, selectedTry),
+    [isLocked, tryDraft, selectedTry],
+  )
+
+  const isMetaDirty =
+    metaDraft.background !== savedMeta.background ||
+    metaDraft.objective !== savedMeta.objective
+
+  const blocker = useBlocker(isDirty)
+  const starredCount = tries.filter((t) => t.starred).length
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadDosageForms() {
+      try {
+        const forms = await apiGet<DosageFormOption[]>('/dosage-forms')
+        if (isActive) setDosageFormOptions(forms)
+      } catch { /* use empty list */ }
     }
 
-    setEditTitle(targetTry.title)
-    setEditStatus(targetTry.status)
-    setEditDosageForm(targetTry.dosageForm)
-    setEditManufacturingProcess(targetTry.manufacturingProcess)
-    setEditMemo(targetTry.memo)
-    setEditFormulaRows(
-      targetTry.ingredients.length > 0 ? targetTry.ingredients : [{ ...emptyFormulaRow }],
-    )
+    void loadDosageForms()
+    return () => { isActive = false }
   }, [])
 
   useEffect(() => {
-    if (!projectId) {
-      return
-    }
-
+    if (!projectId) return
     let isActive = true
 
     async function loadProject() {
       try {
         const project = await apiGet<ApiProject>(`/projects/${projectId}`)
+        if (!isActive) return
 
-        if (!isActive) {
-          return
+        const loadedTries = (project.tries ?? [])
+          .map(toTryRow)
+          .sort((a, b) => a.tryNumber - b.tryNumber)
+
+        let sourceProductName: string | null = null
+        if (project.sourceProductId) {
+          try {
+            const p = await apiGet<ApiProduct>(`/products/${project.sourceProductId}`)
+            sourceProductName = p.name
+          } catch { /* no-op */ }
         }
 
-        const loadedGroups = toExperimentGroups(project.groups ?? [])
-        const nextActiveGroup = loadedGroups[0] ?? initialGroups[0]
+        setProjectMeta({
+          name: project.name,
+          background: project.background ?? '',
+          objective: project.objective ?? '',
+          sourceProductId: project.sourceProductId ?? null,
+          sourceProductName,
+        })
+        const meta = { background: project.background ?? '', objective: project.objective ?? '' }
+        setMetaDraft(meta)
+        setSavedMeta(meta)
+        setTries(loadedTries)
 
-        setProjectName(project.name)
-        setProjectDescription(toProjectDescription(project))
-        setGroups(loadedGroups.length > 0 ? loadedGroups : initialGroups)
-        setActiveGroupId(nextActiveGroup.id)
-        setEditTryNumber(nextActiveGroup.tries[0] ? String(nextActiveGroup.tries[0].id) : '')
-        setResultTryNumber('')
-        setProductTryNumber('')
-        setLastCreatedProduct(null)
-        setStatusFilter('all')
-        setMarkedTypeFilter('all')
-        syncEditForm(nextActiveGroup.tries[0])
-        setNotice('')
+        if (loadedTries.length > 0) {
+          setSelectedTryId(loadedTries[0].id)
+          setTryDraft(toTryDraft(loadedTries[0]))
+        }
       } catch {
-        if (!isActive) {
-          return
-        }
-
-        setProjectName(sampleProjectName)
-        setProjectDescription(sampleProjectDescription)
-        setGroups(initialGroups)
-        setActiveGroupId(sampleGroupId)
-        setEditTryNumber(String(initialTries[0].id))
-        setResultTryNumber('')
-        setProductTryNumber('')
-        setLastCreatedProduct(null)
-        setStatusFilter('all')
-        setMarkedTypeFilter('all')
-        syncEditForm(initialTries[0])
-        setNotice(fallbackNotice)
+        if (!isActive) return
+        setProjectMeta((prev) => ({ ...prev, name: '프로젝트 로드 실패' }))
       }
     }
 
     void loadProject()
+    return () => { isActive = false }
+  }, [projectId])
 
-    return () => {
-      isActive = false
-    }
-  }, [projectId, syncEditForm])
-
-  function updateActiveGroupTries(updater: (current: TryRow[]) => TryRow[]) {
-    setGroups((currentGroups) =>
-      currentGroups.map((group) =>
-        group.id === activeGroupId ? { ...group, tries: updater(group.tries) } : group,
-      ),
-    )
-  }
-
-  function selectGroup(group: ExperimentGroupRow) {
-    setActiveGroupId(group.id)
-    setTryFilter('all')
-    setStatusFilter('all')
-    setEditTryNumber(group.tries[0] ? String(group.tries[0].id) : '')
-    setResultTryNumber('')
-    setProductTryNumber('')
-    setLastCreatedProduct(null)
-    syncEditForm(group.tries[0])
-  }
-
-  async function createExperimentGroup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    const name = groupTitle.trim()
-
-    if (!name || !projectId) {
-      return
-    }
-
-    const payload = {
-      name,
-      purpose: nullableText(groupPurpose),
-    }
-
-    setGroupTitle('')
-    setGroupPurpose('')
-
-    try {
-      const createdGroup = await apiPost<ApiExperimentGroup, typeof payload>(
-        `/projects/${projectId}/groups`,
-        payload,
-      )
-      const newGroup = toExperimentGroup(createdGroup)
-
-      setGroups((currentGroups) => [...currentGroups, newGroup])
-      setActiveGroupId(newGroup.id)
-      setEditTryNumber('')
-      setResultTryNumber('')
-      setProductTryNumber('')
-      setLastCreatedProduct(null)
-      syncEditForm(undefined)
+  const selectTry = useCallback(
+    (tryRow: TryRow) => {
+      setSelectedTryId(tryRow.id)
+      setTryDraft(toTryDraft(tryRow))
       setNotice('')
-    } catch {
-      const newGroup: ExperimentGroupRow = {
-        id: `local-group-${Date.now()}`,
-        name,
-        purpose: groupPurpose.trim(),
-        tries: [],
-      }
-
-      setGroups((currentGroups) => [...currentGroups, newGroup])
-      setActiveGroupId(newGroup.id)
-      setEditTryNumber('')
-      setResultTryNumber('')
-      setProductTryNumber('')
-      setLastCreatedProduct(null)
-      syncEditForm(undefined)
-      setNotice(localOnlyNotice)
-    }
-  }
-
-  async function toggleMarked(id: number) {
-    const targetTry = tries.find((item) => item.id === id)
-
-    if (!targetTry) {
-      return
-    }
-
-    if (targetTry.marked) {
-      if (!targetTry.apiId) {
-        updateActiveGroupTries((current) =>
-          current.map((item) =>
-            item.id === id ? { ...item, marked: false, mark: undefined } : item,
-          ),
-        )
-        setNotice(localOnlyNotice)
-        return
-      }
-
-      try {
-        await apiDelete<{ tryId: string; deletedCount: number }>(
-          `/projects/tries/${targetTry.apiId}/marks`,
-        )
-        updateActiveGroupTries((current) =>
-          current.map((item) =>
-            item.id === id ? { ...item, marked: false, mark: undefined } : item,
-          ),
-        )
-        setNotice('')
-      } catch {
-        setNotice(localOnlyNotice)
-      }
-      return
-    }
-
-    const payload = {
-      type: markType,
-      reason: nullableText(markReason),
-    }
-    const localMark = toTryMarkRow(payload) ?? { type: markType, reason: '' }
-
-    if (!targetTry.apiId) {
-      updateActiveGroupTries((current) =>
-        current.map((item) =>
-          item.id === id ? { ...item, marked: true, mark: localMark } : item,
-        ),
-      )
-      setMarkReason('')
-      setNotice(localOnlyNotice)
-      return
-    }
-
-    try {
-      const createdMark = await apiPost<ApiTryMark, typeof payload>(
-        `/projects/tries/${targetTry.apiId}/marks`,
-        payload,
-      )
-      const nextMark = toTryMarkRow(createdMark, localMark)
-
-      updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === id ? { ...item, marked: true, mark: nextMark } : item)),
-      )
-      setMarkReason('')
-      setNotice('')
-    } catch {
-      updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === id ? { ...item, marked: true, mark: localMark } : item)),
-      )
-      setMarkReason('')
-      setNotice(localOnlyNotice)
-    }
-  }
-
-  async function addTry() {
-    const nextId = maxTryNumber + 1
-    const title = tryTitle.trim() || `try#${nextId}`
-    setTryTitle('')
-
-    try {
-      const createdTry = await apiPost<
-        ApiFormulaTry,
-        { tryNumber: number; title: string; status: 'DRAFT' }
-      >(`/projects/groups/${activeGroupId}/tries`, {
-        tryNumber: nextId,
-        title,
-        status: 'DRAFT',
-      })
-
-      updateActiveGroupTries((current) => [
-        ...current,
-        {
-          id: createdTry.tryNumber,
-          apiId: createdTry.id,
-          title: createdTry.title?.trim() || title,
-          status: createdTry.status ?? 'DRAFT',
-          dosageForm: createdTry.dosageForm?.trim() || '',
-          manufacturingProcess: createdTry.manufacturingProcess?.trim() || '',
-          memo: createdTry.memo?.trim() || '',
-          ingredients: toFormulaRows(createdTry.ingredients ?? []),
-          testResults: toTestResultRows(createdTry.testResults ?? []),
-          marked: false,
-        },
-      ])
-      setNotice('')
-    } catch {
-      updateActiveGroupTries((current) => [
-        ...current,
-        {
-          id: nextId,
-          title,
-          status: 'DRAFT',
-          dosageForm: '',
-          manufacturingProcess: '',
-          memo: '',
-          ingredients: [{ ...emptyFormulaRow }],
-          testResults: [],
-          marked: false,
-        },
-      ])
-      setNotice(localOnlyNotice)
-    }
-  }
-
-  async function deleteTry(id: number) {
-    const targetTry = tries.find((item) => item.id === id)
-    const remainingTries = tries.filter((item) => item.id !== id)
-
-    updateActiveGroupTries(() => remainingTries)
-
-    if (String(id) === editTryNumber) {
-      setEditTryNumber(remainingTries[0] ? String(remainingTries[0].id) : '')
-      syncEditForm(remainingTries[0])
-    }
-
-    if (String(id) === resultTryNumber) {
-      setResultTryNumber('')
-    }
-
-    if (!targetTry?.apiId) {
-      setNotice(localOnlyNotice)
-      return
-    }
-
-    try {
-      await apiDelete(`/projects/tries/${targetTry.apiId}`)
-      setNotice('')
-    } catch {
-      setNotice(localOnlyNotice)
-    }
-  }
-
-  async function registerTestResult(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    if (!selectedResultTry?.apiId) {
-      appendTestResult(selectedResultTry?.id, toLocalTestResult())
-      setNotice(localOnlyNotice)
-      return
-    }
-
-    const payload = {
-      testPurpose: nullableText(testPurpose),
-      measuredItem: nullableText(measuredItem),
-      measuredValue: nullableText(measuredValue),
-      unit: nullableText(unit),
-      judgment: nullableText(judgment),
-      memo: nullableText(resultMemo),
-    }
-
-    try {
-      const createdResult = await apiPost<ApiTestResult, typeof payload>(
-        `/projects/tries/${selectedResultTry.apiId}/test-results`,
-        payload,
-      )
-
-      appendTestResult(selectedResultTry.id, toTestResultRow(createdResult))
-      setTestPurpose('')
-      setMeasuredItem('')
-      setMeasuredValue('')
-      setUnit('')
-      setJudgment('')
-      setResultMemo('')
-      setNotice('테스트 결과가 등록됐습니다.')
-    } catch {
-      appendTestResult(selectedResultTry.id, toLocalTestResult())
-      setNotice(localOnlyNotice)
-    }
-  }
-
-  async function registerProduct(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    if (!selectedProductTry) {
-      return
-    }
-
-    const payload = {
-      name: productName.trim() || defaultProductName(projectName, selectedProductTry),
-      packagingName: nullableText(productPackagingName),
-      formulaVersion: `try#${selectedProductTry.id}`,
-      formulaNote: nullableText(selectedProductTry.memo),
-    }
-
-    if (!selectedProductTry.apiId) {
-      setLastCreatedProduct(null)
-      setNotice(localOnlyNotice)
-      return
-    }
-
-    try {
-      const createdProduct = await apiPost<ApiCreatedProduct, typeof payload>(
-        `/projects/tries/${selectedProductTry.apiId}/product`,
-        payload,
-      )
-
       setProductName('')
-      setProductPackagingName('')
-      setLastCreatedProduct(createdProduct)
-      setNotice(`제품으로 등록됐습니다: ${createdProduct.name}`)
-    } catch {
-      setLastCreatedProduct(null)
-      setNotice(localOnlyNotice)
-    }
-  }
+    },
+    [],
+  )
 
-  function appendTestResult(tryNumber: number | undefined, result: TryTestResultRow) {
-    if (!tryNumber) {
-      return
-    }
-
-    updateActiveGroupTries((current) =>
-      current.map((item) =>
-        item.id === tryNumber ? { ...item, testResults: [result, ...item.testResults] } : item,
-      ),
-    )
-  }
-
-  function toLocalTestResult(): TryTestResultRow {
-    return {
-      id: `local-${Date.now()}`,
-      testPurpose: '',
-      measuredItem: measuredItem.trim(),
-      measuredValue: measuredValue.trim(),
-      unit: unit.trim(),
-      judgment: judgment.trim(),
-      memo: resultMemo.trim(),
-    }
-  }
-
-  async function saveTryFormula(event: FormEvent<HTMLFormElement>) {
+  async function saveTryDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!selectedTry || !tryDraft || isLocked) return
 
-    if (!selectedEditTry) {
-      return
-    }
+    setIsSaving(true)
 
-    const payload = {
-      status: editStatus,
-      title: nullableText(editTitle),
-      dosageForm: nullableText(editDosageForm),
-      manufacturingProcess: nullableText(editManufacturingProcess),
-      memo: nullableText(editMemo),
-      ingredients: toIngredientPayload(editFormulaRows),
-    }
-
-    const localUpdatedTry: TryRow = {
-      ...selectedEditTry,
-      title: editTitle.trim() || `try#${selectedEditTry.id}`,
-      status: editStatus,
-      dosageForm: editDosageForm.trim(),
-      manufacturingProcess: editManufacturingProcess.trim(),
-      memo: editMemo.trim(),
-      ingredients: editFormulaRows,
-    }
-
-    if (!selectedEditTry.apiId) {
-      updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === selectedEditTry.id ? localUpdatedTry : item)),
+    try {
+      const updated = await apiPatch<ApiFormulaTry, object>(
+        `/projects/tries/${selectedTry.id}`,
+        {
+          title: tryDraft.title.trim() || null,
+          dosageForm: tryDraft.dosageForm.trim() || null,
+          memo: tryDraft.memo.trim() || null,
+          ingredients: tryDraft.ingredients,
+        },
       )
+      const updatedRow = toTryRow(updated)
+      setTries((current) => current.map((t) => (t.id === selectedTry.id ? updatedRow : t)))
+      setTryDraft(toTryDraft(updatedRow))
+      setNotice('저장됐습니다.')
+    } catch {
+      const localRow: TryRow = {
+        ...selectedTry,
+        title: tryDraft.title.trim() || `Try#${selectedTry.tryNumber}`,
+        dosageForm: tryDraft.dosageForm.trim(),
+        memo: tryDraft.memo.trim(),
+        ingredients: tryDraft.ingredients,
+      }
+      setTries((current) => current.map((t) => (t.id === selectedTry.id ? localRow : t)))
+      setTryDraft(toTryDraft(localRow))
       setNotice(localOnlyNotice)
-      return
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function toggleStar(tryId: string) {
+    const target = tries.find((t) => t.id === tryId)
+    if (!target) return
+
+    setTries((current) =>
+      current.map((t) => (t.id === tryId ? { ...t, starred: !t.starred } : t)),
+    )
+
+    try {
+      await apiPatch(`/projects/tries/${tryId}/star`, {})
+    } catch {
+      setTries((current) =>
+        current.map((t) => (t.id === tryId ? { ...t, starred: target.starred } : t)),
+      )
+    }
+  }
+
+  async function handleAddTry() {
+    const maxNumber = tries.reduce((m, t) => Math.max(m, t.tryNumber), 0)
+    const nextNumber = maxNumber + 1
+    const title = `Try#${nextNumber}`
+
+    try {
+      const created = await apiPost<ApiFormulaTry, object>(
+        `/projects/${projectId}/tries`,
+        { tryNumber: nextNumber, title },
+      )
+      const newTry = toTryRow(created)
+      setTries((current) => [...current, newTry])
+      setSelectedTryId(newTry.id)
+      setTryDraft(toTryDraft(newTry))
+      setNotice('')
+    } catch {
+      const localTry: TryRow = {
+        id: `local-${Date.now()}`,
+        tryNumber: nextNumber,
+        title,
+        dosageForm: '',
+        memo: '',
+        starred: false,
+        ingredients: [],
+        registeredProductId: null,
+      }
+      setTries((current) => [...current, localTry])
+      setSelectedTryId(localTry.id)
+      setTryDraft(toTryDraft(localTry))
+      setNotice(localOnlyNotice)
+    }
+  }
+
+  async function deleteTry(tryId: string) {
+    const remaining = tries.filter((t) => t.id !== tryId)
+    setTries(remaining)
+
+    if (selectedTryId === tryId) {
+      const next = remaining[remaining.length - 1] ?? null
+      setSelectedTryId(next?.id ?? null)
+      setTryDraft(next ? toTryDraft(next) : null)
     }
 
     try {
-      const updatedTry = await apiPatch<ApiFormulaTry, typeof payload>(
-        `/projects/tries/${selectedEditTry.apiId}`,
-        payload,
-      )
-      const [updatedRow] = toTryRows([updatedTry])
+      await apiDelete(`/projects/tries/${tryId}`)
+      setNotice('')
+    } catch {
+      setNotice(localOnlyNotice)
+    }
+  }
 
-      updateActiveGroupTries((current) =>
-        current.map((item) =>
-          item.id === selectedEditTry.id
-            ? {
-                ...item,
-                ...updatedRow,
-                marked: item.marked || updatedRow.marked,
-              }
-            : item,
+  async function saveProjectMeta() {
+    if (!projectId) return
+    setIsSavingMeta(true)
+    try {
+      await apiPatch(`/projects/${projectId}/metadata`, {
+        background: metaDraft.background.trim() || null,
+        objective: metaDraft.objective.trim() || null,
+      })
+      setSavedMeta({ ...metaDraft })
+      setProjectMeta((prev) => ({
+        ...prev,
+        background: metaDraft.background,
+        objective: metaDraft.objective,
+      }))
+      setNotice('프로젝트 정보가 저장됐습니다.')
+    } catch {
+      setNotice(localOnlyNotice)
+    } finally {
+      setIsSavingMeta(false)
+    }
+  }
+
+  async function doRegisterProduct() {
+    if (!selectedTry || !productName.trim()) return
+
+    setIsRegisteringProduct(true)
+    try {
+      const created = await apiPost<ApiProduct, object>(
+        `/projects/tries/${selectedTry.id}/product`,
+        { name: productName.trim() },
+      )
+      setTries((current) =>
+        current.map((t) =>
+          t.id === selectedTry.id ? { ...t, registeredProductId: created.id } : t,
         ),
       )
-      setNotice('Try 배합 정보가 저장됐습니다.')
-    } catch {
-      updateActiveGroupTries((current) =>
-        current.map((item) => (item.id === selectedEditTry.id ? localUpdatedTry : item)),
+      setProductName('')
+      setNotice(
+        <span>
+          제품으로 등록됐습니다:{' '}
+          <Link to={`/products/${created.id}`}>{created.name}</Link>
+        </span> as unknown as string,
       )
+    } catch {
       setNotice(localOnlyNotice)
+    } finally {
+      setIsRegisteringProduct(false)
+    }
+  }
+
+  async function handleSaveAndLeave() {
+    const saved = await saveTryDraftSilent()
+    if (saved && blocker.proceed) {
+      blocker.proceed()
+    }
+  }
+
+  async function saveTryDraftSilent(): Promise<boolean> {
+    if (!selectedTry || !tryDraft) return true
+    try {
+      const updated = await apiPatch<ApiFormulaTry, object>(
+        `/projects/tries/${selectedTry.id}`,
+        {
+          title: tryDraft.title.trim() || null,
+          dosageForm: tryDraft.dosageForm.trim() || null,
+          memo: tryDraft.memo.trim() || null,
+          ingredients: tryDraft.ingredients,
+        },
+      )
+      const updatedRow = toTryRow(updated)
+      setTries((current) => current.map((t) => (t.id === selectedTry.id ? updatedRow : t)))
+      setTryDraft(toTryDraft(updatedRow))
+      return true
+    } catch {
+      return false
     }
   }
 
   return (
     <div className="workflow-page">
       <section className="page-heading">
-        <div>
-          <h2>{projectName}</h2>
-          <p>{projectDescription}</p>
+        <div className="page-heading-with-back">
+          <button
+            type="button"
+            className="back-button"
+            onClick={() => navigate('/projects', { state: { restoreProjectsList: true } })}
+          >
+            ← 프로젝트 목록
+          </button>
+          <div>
+            <h2>{projectMeta.name}</h2>
+            <p>별표 Try {starredCount}건</p>
+          </div>
         </div>
-        <strong className="status-pill">의미 있는 Try {markedCount}건</strong>
       </section>
 
-      <section className="workflow-panel">
+      {/* 프로젝트 개요 */}
+      <section className="workflow-panel project-meta-panel">
         <div className="panel-heading compact">
-          <h3>{activeGroup?.name ?? sampleGroupName}</h3>
-          <span>{trySummary}</span>
-        </div>
-        <div className="view-toggle" aria-label="실험 그룹 선택">
-          {groups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              className={group.id === activeGroup?.id ? 'active' : ''}
-              aria-label={group.name}
-              aria-pressed={group.id === activeGroup?.id}
-              onClick={() => selectGroup(group)}
-            >
-              {group.name} · {group.tries.length}건
-            </button>
-          ))}
-        </div>
-        <form className="group-add-form" onSubmit={createExperimentGroup}>
-          <label>
-            실험 그룹명
-            <input value={groupTitle} onChange={(event) => setGroupTitle(event.target.value)} />
-          </label>
-          <label>
-            그룹 목적
-            <input
-              value={groupPurpose}
-              onChange={(event) => setGroupPurpose(event.target.value)}
-            />
-          </label>
-          <button type="submit" className="primary-dashboard-button">
-            그룹 추가
-          </button>
-        </form>
-        <div className="view-toggle" aria-label="Try 보기 필터">
+          <h3>프로젝트 개요</h3>
           <button
             type="button"
-            className={tryFilter === 'all' ? 'active' : ''}
-            aria-pressed={tryFilter === 'all'}
-            onClick={() => setTryFilter('all')}
+            className="primary-dashboard-button"
+            disabled={!isMetaDirty || isSavingMeta}
+            onClick={saveProjectMeta}
           >
-            전체 Try 보기
-          </button>
-          <button
-            type="button"
-            className={tryFilter === 'marked' ? 'active' : ''}
-            aria-pressed={tryFilter === 'marked'}
-            onClick={() => setTryFilter('marked')}
-          >
-            의미 있는 Try만 보기
+            {isSavingMeta ? '저장 중...' : '저장'}
           </button>
         </div>
-        <label className="status-filter">
-          Try 상태 필터
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as 'all' | TryStatus)}
-          >
-            <option value="all">전체 상태</option>
-            {tryStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="mark-form">
+        {projectMeta.sourceProductId && (
+          <div className="project-source-product">
+            <span className="meta-label">기준 제품</span>
+            <Link to={`/products/${projectMeta.sourceProductId}`}>
+              {projectMeta.sourceProductName ?? projectMeta.sourceProductId}
+            </Link>
+          </div>
+        )}
+        <div className="project-meta-grid">
           <label>
-            마킹 유형
-            <select
-              value={markType}
-              onChange={(event) => setMarkType(event.target.value as TryMarkType)}
-            >
-              {tryMarkOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="wide-field">
-            마킹 사유
-            <input
-              value={markReason}
-              onChange={(event) => setMarkReason(event.target.value)}
-              placeholder="예: 쓴맛 과다, 최종 후보 검토, 안정성 이슈"
-            />
-          </label>
-        </div>
-        <div className="try-add-form">
-          <label>
-            Try 목적
-            <input value={tryTitle} onChange={(event) => setTryTitle(event.target.value)} />
-          </label>
-          <button type="button" className="primary-dashboard-button" onClick={addTry}>
-            Try 추가
-          </button>
-        </div>
-        <form className="test-result-form" onSubmit={registerTestResult}>
-          <label>
-            결과 등록 Try
-            <select
-              value={effectiveResultTryNumber ? String(effectiveResultTryNumber.id) : ''}
-              onChange={(event) => setResultTryNumber(event.target.value)}
-            >
-              {tries.map((item) => (
-                <option key={item.id} value={String(item.id)}>
-                  try#{item.id} {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            시험 목적
-            <input value={testPurpose} onChange={(event) => setTestPurpose(event.target.value)} />
-          </label>
-          <label>
-            측정 항목
-            <input value={measuredItem} onChange={(event) => setMeasuredItem(event.target.value)} />
-          </label>
-          <label>
-            측정값
-            <input
-              inputMode="decimal"
-              value={measuredValue}
-              onChange={(event) => setMeasuredValue(event.target.value)}
+            시작 배경
+            <textarea
+              value={metaDraft.background}
+              onChange={(e) => setMetaDraft((prev) => ({ ...prev, background: e.target.value }))}
+              placeholder="예: 한미약품 발주, 소비자 클레임 개선 등"
+              rows={2}
             />
           </label>
           <label>
-            단위
-            <input value={unit} onChange={(event) => setUnit(event.target.value)} />
-          </label>
-          <label>
-            판정
-            <input value={judgment} onChange={(event) => setJudgment(event.target.value)} />
-          </label>
-          <label className="wide-field">
-            메모
-            <input value={resultMemo} onChange={(event) => setResultMemo(event.target.value)} />
-          </label>
-          <button type="submit" className="primary-dashboard-button">
-            테스트 결과 등록
-          </button>
-        </form>
-        <form className="product-export-form" onSubmit={registerProduct}>
-          <label>
-            제품 등록 Try
-            <select
-              value={effectiveProductTryNumber ? String(effectiveProductTryNumber.id) : ''}
-              onChange={(event) => setProductTryNumber(event.target.value)}
-            >
-              {tries.map((item) => (
-                <option key={item.id} value={String(item.id)}>
-                  try#{item.id} {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            제품명
-            <input
-              value={productName}
-              onChange={(event) => setProductName(event.target.value)}
-              placeholder={
-                selectedProductTry ? defaultProductName(projectName, selectedProductTry) : '제품명'
-              }
+            개발 목표
+            <textarea
+              value={metaDraft.objective}
+              onChange={(e) => setMetaDraft((prev) => ({ ...prev, objective: e.target.value }))}
+              placeholder="예: 눈 건강 개선 연질캡슐 처방 확정"
+              rows={2}
             />
           </label>
-          <label>
-            포장
-            <input
-              value={productPackagingName}
-              onChange={(event) => setProductPackagingName(event.target.value)}
-              placeholder="예: Multi PTP"
-            />
-          </label>
-          <button type="submit" className="primary-dashboard-button">
-            제품 등록
-          </button>
-        </form>
-        {notice ? <p className="local-notice">{notice}</p> : null}
-        {lastCreatedProduct ? (
-          <div className="product-export-result">
-            <span>{lastCreatedProduct.name}</span>
-            <Link to={`/products/${lastCreatedProduct.id}`}>등록 제품 보기</Link>
-          </div>
-        ) : null}
-        <section className="project-marked-tries">
-          <div className="panel-heading compact">
-            <h3>프로젝트 의미 Try</h3>
-            <span>{visibleMarkedTryRows.length}건</span>
-          </div>
-          <label className="project-mark-filter">
-            프로젝트 의미 Try 유형 필터
-            <select
-              value={markedTypeFilter}
-              onChange={(event) => setMarkedTypeFilter(event.target.value as 'all' | TryMarkType)}
-            >
-              <option value="all">전체 유형</option>
-              {tryMarkOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="workflow-table-wrap">
-            <table className="workflow-table">
-              <thead>
-                <tr>
-                  <th>그룹</th>
-                  <th>Try</th>
-                  <th>목적</th>
-                  <th>상태</th>
-                  <th>마킹</th>
-                  <th>사유</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleMarkedTryRows.map(({ groupId, groupName, tryRow }) => (
-                  <tr key={`${groupId}-${tryRow.id}`}>
-                    <td>{groupName}</td>
-                    <td>try#{tryRow.id}</td>
-                    <td>{tryRow.title}</td>
-                    <td>{tryStatusLabels[tryRow.status]}</td>
-                    <td>{formatMark(tryRow.mark)}</td>
-                    <td>{tryRow.mark?.reason || '-'}</td>
-                  </tr>
-                ))}
-                {visibleMarkedTryRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6}>프로젝트에 마킹된 Try 없음</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <section className="test-result-history">
-          <div className="panel-heading compact">
-            <h3>테스트 결과 이력</h3>
-            <span>{testResultRows.length}건</span>
-          </div>
-          <div className="workflow-table-wrap">
-            <table className="workflow-table">
-              <thead>
-                <tr>
-                  <th>Try</th>
-                  <th>시험 목적</th>
-                  <th>측정 항목</th>
-                  <th>측정값</th>
-                  <th>판정</th>
-                  <th>메모</th>
-                </tr>
-              </thead>
-              <tbody>
-                {testResultRows.map((result) => (
-                  <tr key={result.id}>
-                    <td>try#{result.tryNumber}</td>
-                    <td>{result.testPurpose || '-'}</td>
-                    <td>{result.measuredItem || '-'}</td>
-                    <td>{formatMeasurement(result)}</td>
-                    <td>{result.judgment || '-'}</td>
-                    <td>{result.memo || '-'}</td>
-                  </tr>
-                ))}
-                {testResultRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6}>등록된 테스트 결과 없음</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <form className="try-detail-form" onSubmit={saveTryFormula}>
-          <div className="panel-heading compact">
-            <h3>Try 배합 정보</h3>
-            <span>선택 입력</span>
-          </div>
-          <div className="try-detail-grid">
-            <label>
-              편집 Try
-              <select
-                value={selectedEditTry ? String(selectedEditTry.id) : ''}
-                onChange={(event) => {
-                  const nextTryNumber = event.target.value
-                  setEditTryNumber(nextTryNumber)
-                  syncEditForm(tries.find((item) => String(item.id) === nextTryNumber))
-                }}
-              >
-                {tries.map((item) => (
-                  <option key={item.id} value={String(item.id)}>
-                    try#{item.id} {item.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Try 제목
-              <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
-            </label>
-            <label>
-              Try 상태
-              <select
-                value={editStatus}
-                onChange={(event) => setEditStatus(event.target.value as TryStatus)}
-              >
-                {tryStatusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              제형
-              <input
-                value={editDosageForm}
-                onChange={(event) => setEditDosageForm(event.target.value)}
-              />
-            </label>
-            <label>
-              제조 공정
-              <input
-                value={editManufacturingProcess}
-                onChange={(event) => setEditManufacturingProcess(event.target.value)}
-              />
-            </label>
-            <label className="wide-field">
-              Try 메모
-              <input value={editMemo} onChange={(event) => setEditMemo(event.target.value)} />
-            </label>
-          </div>
-          <FormulaInputTable rows={editFormulaRows} onChange={setEditFormulaRows} />
-          <div className="form-actions">
-            <span>원료명만 입력된 행도 저장됩니다.</span>
-            <button type="submit" className="primary-dashboard-button">
-              Try 배합 저장
-            </button>
-          </div>
-        </form>
-        <div className="workflow-table-wrap">
-          <table className="workflow-table">
-            <thead>
-              <tr>
-                <th>Try</th>
-                <th>목적</th>
-                <th>상태</th>
-                <th>마킹</th>
-                <th>작업</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleTries.map((item) => (
-                <tr key={item.id}>
-                  <td>try#{item.id}</td>
-                  <td>{item.title}</td>
-                  <td>{tryStatusLabels[item.status]}</td>
-                  <td>{formatMark(item.mark)}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        className="text-action"
-                        onClick={() => toggleMarked(item.id)}
-                      >
-                        try#{item.id} 마킹
-                      </button>
-                      <button
-                        type="button"
-                        className="text-action danger"
-                        onClick={() => deleteTry(item.id)}
-                      >
-                        try#{item.id} 삭제
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {visibleTries.length === 0 ? (
-                <tr>
-                  <td colSpan={5}>마킹된 Try 없음</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
         </div>
       </section>
+
+      {/* Try 작업 영역 */}
+      <div className="project-try-layout">
+        {/* 왼쪽: Try 목록 */}
+        <section className="workflow-panel project-try-list-panel">
+          <div className="panel-heading compact">
+            <h3>Try 목록</h3>
+            <button
+              type="button"
+              className="icon-action-btn"
+              title="Try 추가"
+              onClick={() => void handleAddTry()}
+            >
+              +
+            </button>
+          </div>
+
+          <div className="try-list">
+            {tries.map((tryRow) => {
+              const displayTitle = selectedTryId === tryRow.id && tryDraft
+                ? (tryDraft.title.trim() || `Try#${tryRow.tryNumber}`)
+                : tryRow.title
+              return (
+                <button
+                  key={tryRow.id}
+                  type="button"
+                  className={`try-list-item${selectedTryId === tryRow.id ? ' active' : ''}${tryRow.registeredProductId ? ' registered' : ''}`}
+                  onClick={() => selectTry(tryRow)}
+                >
+                  <div className="try-list-header">
+                    <span className="try-number">
+                      Try#{tryRow.tryNumber}
+                      {tryRow.registeredProductId && <span className="try-locked-icon" title="제품 등록됨"> 🔒</span>}
+                    </span>
+                    <button
+                      type="button"
+                      className={`star-btn${tryRow.starred ? ' starred' : ''}`}
+                      aria-label={tryRow.starred ? '별표 해제' : '별표 추가'}
+                      onClick={(e) => { e.stopPropagation(); void toggleStar(tryRow.id) }}
+                    >
+                      {tryRow.starred ? '★' : '☆'}
+                    </button>
+                  </div>
+                  <div className="try-list-title">{displayTitle}</div>
+                </button>
+              )
+            })}
+            {tries.length === 0 && (
+              <p className="empty-result">아직 Try가 없습니다.</p>
+            )}
+          </div>
+        </section>
+
+        {/* 오른쪽: Try 상세 */}
+        <section className="workflow-panel project-try-detail-panel">
+          {selectedTry && tryDraft ? (
+            <form onSubmit={saveTryDraft}>
+              <div className="panel-heading compact">
+                <h3>Try#{selectedTry.tryNumber} {selectedTry.title}</h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {!isLocked && (
+                    <>
+                      <button
+                        type="button"
+                        className="danger-text-btn"
+                        onClick={() => {
+                          if (window.confirm(`Try#${selectedTry.tryNumber}을 삭제할까요?`)) {
+                            void deleteTry(selectedTry.id)
+                          }
+                        }}
+                      >
+                        삭제
+                      </button>
+                      <button
+                        type="submit"
+                        className="primary-dashboard-button"
+                        disabled={!isDirty || isSaving}
+                      >
+                        {isSaving ? '저장 중...' : '저장'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {isLocked && (
+                <div className="try-locked-notice">
+                  <span>이 Try는 제품/처방으로 등록되어 수정할 수 없습니다.</span>
+                  <Link to={`/products/${selectedTry.registeredProductId}`}>
+                    등록된 제품 보기 →
+                  </Link>
+                </div>
+              )}
+
+              <fieldset disabled={isLocked} className="try-fieldset">
+                <div className="try-detail-grid">
+                  <label>
+                    Try 제목
+                    <div className="input-with-clear">
+                      <input
+                        value={tryDraft.title}
+                        onChange={(e) => setTryDraft((d) => d ? { ...d, title: e.target.value } : d)}
+                        placeholder={`Try#${selectedTry.tryNumber}`}
+                      />
+                      {tryDraft.title && !isLocked && (
+                        <button
+                          type="button"
+                          className="input-clear-btn"
+                          aria-label="제목 지우기"
+                          onClick={() => setTryDraft((d) => d ? { ...d, title: '' } : d)}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </label>
+                  <label>
+                    제형
+                    <CustomSelect
+                      value={tryDraft.dosageForm}
+                      options={[
+                        { value: '', label: '없음' },
+                        ...dosageFormOptions.map((opt) => ({ value: opt.name, label: opt.name })),
+                      ]}
+                      onChange={(v) => setTryDraft((d) => d ? { ...d, dosageForm: v } : d)}
+                    />
+                  </label>
+                  <label className="wide-field">
+                    메모
+                    <textarea
+                      value={tryDraft.memo}
+                      onChange={(e) => setTryDraft((d) => d ? { ...d, memo: e.target.value } : d)}
+                      rows={3}
+                      placeholder="배합 변경 이유, 관능 관찰 내용 등"
+                    />
+                  </label>
+                </div>
+              </fieldset>
+
+              <FormulaInputTable
+                rows={tryDraft.ingredients}
+                onChange={(rows) => setTryDraft((d) => d ? { ...d, ingredients: rows } : d)}
+                readOnly={isLocked}
+              />
+
+              {!isLocked && (
+                <div className="try-bottom-save">
+                  <button
+                    type="submit"
+                    className="primary-dashboard-button"
+                    disabled={!isDirty || isSaving}
+                  >
+                    {isSaving ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              )}
+
+              {/* 제품 등록 */}
+              {!isLocked && (
+                <div className="try-product-register">
+                  <div className="try-product-register-inner">
+                    <input
+                      className="try-product-name-input"
+                      value={productName}
+                      onChange={(e) => setProductName(e.target.value)}
+                      placeholder="제품명을 입력하면 제품/처방으로 등록합니다"
+                    />
+                    <button
+                      type="button"
+                      className="primary-dashboard-button"
+                      disabled={!productName.trim() || isRegisteringProduct}
+                      onClick={() => setShowRegisterConfirm(true)}
+                    >
+                      {isRegisteringProduct ? '등록 중...' : '제품/처방 등록'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </form>
+          ) : (
+            <div className="try-detail-empty">
+              <p>왼쪽 목록에서 Try를 선택하거나 새로 추가하세요.</p>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {notice ? (
+        typeof notice === 'string' ? (
+          <p className="local-notice" style={{ margin: '12px 0 0' }}>{notice}</p>
+        ) : (
+          <p className="local-notice" style={{ margin: '12px 0 0' }}>{notice}</p>
+        )
+      ) : null}
+
+      {/* 제품 등록 확인 모달 */}
+      {showRegisterConfirm && selectedTry && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="제품/처방 등록 확인"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowRegisterConfirm(false) }}
+        >
+          <div className="modal-panel unsaved-modal">
+            <h3>제품/처방으로 등록</h3>
+            <p>
+              <strong>{productName}</strong> 을(를) 제품/처방으로 등록합니다.<br />
+              등록 후에는 Try#{selectedTry.tryNumber}의 내용을 수정할 수 없습니다.<br />
+              계속하시겠습니까?
+            </p>
+            <div className="unsaved-leave-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowRegisterConfirm(false)}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="primary-dashboard-button"
+                onClick={() => {
+                  setShowRegisterConfirm(false)
+                  void doRegisterProduct()
+                }}
+              >
+                등록
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 저장 안 된 내용 경고 모달 */}
+      {blocker.state === 'blocked' && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="저장 안 된 내용">
+          <div className="modal-panel unsaved-modal">
+            <h3>저장 안 된 내용이 있습니다</h3>
+            <p>이 Try의 변경 사항이 저장되지 않았습니다. 어떻게 하시겠습니까?</p>
+            <div className="unsaved-leave-actions">
+              <button type="button" className="btn-secondary" onClick={() => blocker.reset?.()}>
+                취소
+              </button>
+              <button type="button" className="btn-danger" onClick={() => blocker.proceed?.()}>
+                나가기
+              </button>
+              <button type="button" className="primary-dashboard-button" onClick={handleSaveAndLeave}>
+                저장 후 나가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function nullableText(value?: string | null) {
-  const normalized = value?.trim()
-  return normalized ? normalized : null
-}
-
-function toProjectDescription(project: ApiProject) {
-  const summary = [project.function, project.desiredForm, project.goal]
-    .map((value) => value?.trim())
-    .filter(Boolean)
-    .join(' · ')
-
-  return summary || sampleProjectDescription
-}
-
-function toExperimentGroups(groups: ApiExperimentGroup[]): ExperimentGroupRow[] {
-  return groups.map(toExperimentGroup)
-}
-
-function toExperimentGroup(group: ApiExperimentGroup): ExperimentGroupRow {
+function toTryRow(apiTry: ApiFormulaTry): TryRow {
   return {
-    id: group.id,
-    name: group.name.trim() || '기본 그룹',
-    purpose: group.purpose?.trim() ?? '',
-    tries: toTryRows(group.tries ?? []),
+    id: apiTry.id,
+    tryNumber: apiTry.tryNumber,
+    title: apiTry.title?.trim() || `Try#${apiTry.tryNumber}`,
+    dosageForm: apiTry.dosageForm?.trim() ?? '',
+    memo: apiTry.memo?.trim() ?? '',
+    starred: apiTry.starred ?? false,
+    ingredients: toFormulaRows(apiTry.ingredients ?? []),
+    registeredProductId: apiTry.sourceProducts?.[0]?.id ?? null,
   }
-}
-
-function toTryRows(tries: ApiFormulaTry[]): TryRow[] {
-  return [...tries]
-    .sort((left, right) => left.tryNumber - right.tryNumber)
-    .map((item) => {
-      const mark = toTryMarkRow(item.marks?.[0])
-
-      return {
-        id: item.tryNumber,
-        apiId: item.id,
-        title: item.title?.trim() || `try#${item.tryNumber}`,
-        status: item.status ?? 'DRAFT',
-        dosageForm: item.dosageForm?.trim() || '',
-        manufacturingProcess: item.manufacturingProcess?.trim() || '',
-        memo: item.memo?.trim() || '',
-        ingredients: toFormulaRows(item.ingredients ?? []),
-        testResults: toTestResultRows(item.testResults ?? []),
-        marked: Boolean(mark),
-        mark,
-      }
-    })
-}
-
-function toTryMarkRow(mark?: Partial<ApiTryMark>, fallback?: TryMarkRow): TryMarkRow | undefined {
-  if (!mark && !fallback) {
-    return undefined
-  }
-
-  return {
-    type: mark?.type ?? fallback?.type ?? 'PROMISING',
-    reason: mark?.reason?.trim() || fallback?.reason || '',
-  }
-}
-
-function formatMark(mark?: TryMarkRow) {
-  return mark ? tryMarkLabels[mark.type] : '일반'
 }
 
 function toFormulaRows(ingredients: ApiTryIngredient[]): FormulaRow[] {
   const rows = ingredients
-    .filter((ingredient) => ingredient.ingredient?.name?.trim())
-    .map((ingredient) => ({
-      ingredientName: ingredient.ingredient?.name?.trim() ?? '',
-      amount: toFieldValue(ingredient.amount),
-      unit: ingredient.unit?.trim() || 'mg',
-      ratio: toFieldValue(ingredient.ratio),
-      note: ingredient.note?.trim() ?? '',
+    .filter((i) => i.ingredient?.name?.trim())
+    .map((i) => ({
+      ingredientName: i.ingredient?.name?.trim() ?? '',
+      amount: i.amount !== null && i.amount !== undefined ? String(i.amount) : '',
+      unit: i.unit?.trim() || 'mg',
+      ratio: i.ratio !== null && i.ratio !== undefined ? String(i.ratio) : '',
+      note: i.note?.trim() ?? '',
     }))
 
-  return rows.length > 0 ? rows : [{ ...emptyFormulaRow }]
-}
-
-function toFieldValue(value?: string | number | null) {
-  if (value === null || value === undefined) {
-    return ''
-  }
-
-  return String(value)
-}
-
-function toIngredientPayload(rows: FormulaRow[]) {
-  return rows
-    .map((row) => ({
-      ingredientName: row.ingredientName.trim(),
-      amount: nullableText(row.amount),
-      unit: nullableText(row.unit),
-      ratio: nullableText(row.ratio),
-      note: nullableText(row.note),
-    }))
-    .filter((row) => row.ingredientName)
-}
-
-function toTestResultRows(results: ApiTestResult[]): TryTestResultRow[] {
-  return results.map(toTestResultRow)
-}
-
-function toTestResultRow(result: ApiTestResult): TryTestResultRow {
-  return {
-    id: result.id,
-    testPurpose: result.testPurpose?.trim() ?? '',
-    measuredItem: result.measuredItem?.trim() ?? '',
-    measuredValue: toFieldValue(result.measuredValue),
-    unit: result.unit?.trim() ?? '',
-    judgment: result.judgment?.trim() ?? '',
-    memo: result.memo?.trim() ?? '',
-    createdAt: result.createdAt ?? undefined,
-  }
-}
-
-function formatMeasurement(result: TryTestResultRow) {
-  const value = result.measuredValue.trim()
-  const measurementUnit = result.unit.trim()
-
-  if (!value && !measurementUnit) {
-    return '-'
-  }
-
-  return [value, measurementUnit].filter(Boolean).join(' ')
-}
-
-function defaultProductName(projectName: string, targetTry: TryRow) {
-  return `${projectName} ${targetTry.title || `try#${targetTry.id}`}`
+  return rows.length > 0 ? rows : [{ ingredientName: '', amount: '', unit: 'mg', ratio: '', note: '' }]
 }

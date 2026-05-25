@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useRole } from '../auth/role-context'
 import { USER_ROLE_LABELS, USER_ROLES, type UserRole } from '../auth/roles'
@@ -20,18 +21,32 @@ const navItems: NavItem[] = [
 
 export function Layout() {
   const { role, setRole } = useRole()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
       <aside className="sidebar" aria-label="주요 메뉴">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            K
-          </span>
-          <div>
-            <strong>Kolma R&amp;D</strong>
-            <span>Formula PoC</span>
-          </div>
+        <div className="sidebar-header">
+          {!sidebarCollapsed && (
+            <div className="brand">
+              <span className="brand-mark" aria-hidden="true">K</span>
+              <div>
+                <strong>Kolma R&amp;D</strong>
+                <span>Formula PoC</span>
+              </div>
+            </div>
+          )}
+          {sidebarCollapsed && (
+            <span className="brand-mark brand-mark-solo" aria-hidden="true">K</span>
+          )}
+          <button
+            type="button"
+            className="sidebar-toggle"
+            aria-label={sidebarCollapsed ? '메뉴 펼치기' : '메뉴 접기'}
+            onClick={() => setSidebarCollapsed((v) => !v)}
+          >
+            {sidebarCollapsed ? '›' : '‹'}
+          </button>
         </div>
 
         <nav className="nav-links">
@@ -42,9 +57,11 @@ export function Layout() {
                 key={item.to}
                 to={item.to}
                 end={item.end}
+                title={sidebarCollapsed ? item.label : undefined}
                 className={({ isActive }) => (isActive ? 'active' : undefined)}
               >
-                {item.label}
+                <NavIcon label={item.label} />
+                {!sidebarCollapsed && <span>{item.label}</span>}
               </NavLink>
             ))}
         </nav>
@@ -73,4 +90,16 @@ export function Layout() {
       </div>
     </div>
   )
+}
+
+const NAV_ICONS: Record<string, string> = {
+  '대시보드': '⊞',
+  '제품/처방': '⬡',
+  '프로젝트': '◈',
+  '근거 검색': '⌕',
+  '운영 로그': '≡',
+}
+
+function NavIcon({ label }: { label: string }) {
+  return <span className="nav-icon" aria-hidden="true">{NAV_ICONS[label] ?? '·'}</span>
 }

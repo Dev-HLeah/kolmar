@@ -385,3 +385,22 @@
     flex-direction: column;
   }
 }
+
+.formula-add-row-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.formula-add-row-btn:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}

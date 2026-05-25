@@ -23,16 +23,8 @@ enum TryStatus {
   ON_HOLD
 }
 
-enum TryMarkType {
-  PROMISING
-  ISSUE_FOUND
-  BASELINE_CANDIDATE
-  FINAL_CANDIDATE
-  DISCARDED
-  NEEDS_REVIEW
-}
-
 enum ProductStatus {
+  CANDIDATE
   RELEASED
   PENDING_RELEASE
   UNDER_REVIEW
@@ -94,12 +86,14 @@ model Product {
   description   String?
   referenceNote String?
   status        ProductStatus    @default(UNDER_REVIEW)
+  sourceTryId   String?
   deletedAt     DateTime?
   dosageFormId  String?
   packagingId   String?
   dosageForm    DosageForm?      @relation(fields: [dosageFormId], references: [id])
   packaging     PackagingOption? @relation(fields: [packagingId], references: [id])
   formulas      ProductFormula[]
+  sourceTry     FormulaTry?      @relation(fields: [sourceTryId], references: [id], onDelete: SetNull)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -132,8 +126,10 @@ model ProductFormulaIngredient {
 }
 
 model DevelopmentProject {
-  id                  String            @id @default(cuid())
+  id                  String       @id @default(cuid())
   name                String
+  background          String?
+  objective           String?
   goal                String?
   target              String?
   function            String?
@@ -142,39 +138,28 @@ model DevelopmentProject {
   excludedIngredients String?
   sourceProductId     String?
   sourceFormulaId     String?
-  groups              ExperimentGroup[]
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-}
-
-model ExperimentGroup {
-  id        String             @id @default(cuid())
-  projectId String
-  name      String
-  purpose   String?
-  project   DevelopmentProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tries     FormulaTry[]
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  tries               FormulaTry[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 }
 
 model FormulaTry {
-  id                   String          @id @default(cuid())
-  groupId              String
+  id                   String             @id @default(cuid())
+  projectId            String
   tryNumber            Int
-  status               TryStatus       @default(DRAFT)
+  status               TryStatus          @default(DRAFT)
   title                String?
   dosageForm           String?
   manufacturingProcess String?
   memo                 String?
-  group                ExperimentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  starred              Boolean            @default(false)
+  project              DevelopmentProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ingredients          TryIngredient[]
-  testResults          TryTestResult[]
-  marks                TryMark[]
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  sourceProducts       Product[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  @@unique([groupId, tryNumber])
+  @@unique([projectId, tryNumber])
 }
 
 model TryIngredient {
@@ -187,28 +172,6 @@ model TryIngredient {
   note         String?
   formulaTry   FormulaTry @relation(fields: [tryId], references: [id], onDelete: Cascade)
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
-}
-
-model TryTestResult {
-  id            String     @id @default(cuid())
-  tryId         String
-  testPurpose   String?
-  measuredItem  String?
-  measuredValue String?
-  unit          String?
-  judgment      String?
-  memo          String?
-  formulaTry    FormulaTry @relation(fields: [tryId], references: [id], onDelete: Cascade)
-  createdAt     DateTime   @default(now())
-}
-
-model TryMark {
-  id         String      @id @default(cuid())
-  tryId      String
-  type       TryMarkType
-  reason     String?
-  formulaTry FormulaTry  @relation(fields: [tryId], references: [id], onDelete: Cascade)
-  createdAt  DateTime    @default(now())
 }
 
 model EvidenceSource {

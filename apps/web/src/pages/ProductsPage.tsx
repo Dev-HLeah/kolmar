@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { apiGet } from '../api/client'
 import './WorkflowPages.css'
 
-type ProductStatus = 'RELEASED' | 'PENDING_RELEASE' | 'UNDER_REVIEW' | 'DISCONTINUED'
+type ProductStatus = 'CANDIDATE' | 'RELEASED' | 'PENDING_RELEASE' | 'UNDER_REVIEW' | 'DISCONTINUED'
 
 type ProductRecord = {
   id: string
@@ -194,6 +194,7 @@ export function ProductsPage() {
                 onChange={(event) => updateFilter('status', event.target.value)}
               >
                 <option value="">전체</option>
+                <option value="CANDIDATE">후보</option>
                 <option value="RELEASED">출시</option>
                 <option value="PENDING_RELEASE">출시 대기</option>
                 <option value="UNDER_REVIEW">검수중</option>
@@ -293,6 +294,7 @@ function toProductRecord(product: ApiProduct): ProductRecord {
 }
 
 const STATUS_LABELS: Record<ProductStatus, string> = {
+  CANDIDATE: '후보',
   RELEASED: '출시',
   PENDING_RELEASE: '출시 대기',
   UNDER_REVIEW: '검수중',
@@ -300,6 +302,7 @@ const STATUS_LABELS: Record<ProductStatus, string> = {
 }
 
 const STATUS_BADGE_CLASSES: Record<ProductStatus, string> = {
+  CANDIDATE: 'product-status-badge product-status-candidate',
   RELEASED: 'product-status-badge product-status-released',
   PENDING_RELEASE: 'product-status-badge product-status-pending',
   UNDER_REVIEW: 'product-status-badge product-status-review',

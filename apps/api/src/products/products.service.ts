@@ -18,6 +18,16 @@ const productInclude = {
       },
     },
   },
+  sourceTry: {
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
 };
 
 const kolmarDosageForms = new Set([
@@ -165,10 +175,18 @@ export class ProductsService {
   async updateProductMetadata(id: string, dto: UpdateProductMetadataDto) {
     const currentProduct = await this.findProductById(id);
     const data: {
+      name?: string;
       description?: string | null;
       referenceNote?: string | null;
       status?: NonNullable<UpdateProductMetadataDto['status']>;
     } = {};
+
+    if ('name' in dto && currentProduct.status === 'CANDIDATE') {
+      const trimmedName = dto.name?.trim();
+      if (trimmedName) {
+        data.name = trimmedName;
+      }
+    }
 
     if ('description' in dto) {
       data.description = cleanNullableString(dto.description);

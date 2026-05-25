@@ -12,6 +12,7 @@ export type FormulaRow = {
 type Props = {
   rows: FormulaRow[]
   onChange: (rows: FormulaRow[]) => void
+  readOnly?: boolean
 }
 
 type IngredientSuggestion = {
@@ -76,14 +77,19 @@ const baseIngredientSuggestions: IngredientSuggestion[] = [
 
 type FormulaColumnKey = (typeof formulaColumnKeys)[number]
 
-export function FormulaInputTable({ rows, onChange }: Props) {
+export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false)
   const [recentIngredients, setRecentIngredients] = useState(readRecentIngredients)
   const [activeSuggestionRow, setActiveSuggestionRow] = useState<number | null>(null)
   const formulaSummary = getFormulaSummary(rows)
 
   function updateRow(index: number, key: keyof FormulaRow, value: string) {
-    onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)))
+    const newRows = rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row))
+    if (key === 'amount' || key === 'unit') {
+      onChange(autoRecalculateRatios(newRows))
+    } else {
+      onChange(newRows)
+    }
   }
 
   function convertUnit(index: number, targetUnit: 'mg' | 'g') {
@@ -127,7 +133,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
       return
     }
 
-    onChange(rows.filter((_, rowIndex) => rowIndex !== index))
+    onChange(autoRecalculateRatios(rows.filter((_, rowIndex) => rowIndex !== index)))
   }
 
   function recordRecentIngredient(ingredientName: string) {
@@ -215,7 +221,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
       nextRows[targetIndex] = nextRow
     })
 
-    onChange(nextRows)
+    onChange(autoRecalculateRatios(nextRows))
     recordRecentIngredients(
       nextRows
         .slice(rowIndex, rowIndex + pastedRows.length)
@@ -239,10 +245,12 @@ export function FormulaInputTable({ rows, onChange }: Props) {
 
     event.preventDefault()
     onChange(
-      rows.map((row, rowIndex) =>
-        rowIndex === index
-          ? { ...row, amount: parsedAmount.amount, unit: parsedAmount.unit }
-          : row,
+      autoRecalculateRatios(
+        rows.map((row, rowIndex) =>
+          rowIndex === index
+            ? { ...row, amount: parsedAmount.amount, unit: parsedAmount.unit }
+            : row,
+        ),
       ),
     )
   }
@@ -333,24 +341,23 @@ export function FormulaInputTable({ rows, onChange }: Props) {
           <h3>배합 입력</h3>
           <p>원료별 함량, 비율, 메모를 선택적으로 기록</p>
         </div>
-        <div className="formula-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            aria-label="음성 입력"
-            aria-expanded={isVoicePanelOpen}
-            aria-controls="voice-draft-panel"
-            onClick={() => setIsVoicePanelOpen((current) => !current)}
-          >
-            음성 입력
-          </button>
-          <button type="button" className="primary-button" onClick={addRow}>
-            원료 행 추가
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="formula-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              aria-label="음성 입력"
+              aria-expanded={isVoicePanelOpen}
+              aria-controls="voice-draft-panel"
+              onClick={() => setIsVoicePanelOpen((current) => !current)}
+            >
+              음성 입력
+            </button>
+          </div>
+        )}
       </div>
 
-      {recentIngredients.length ? (
+      {!readOnly && recentIngredients.length ? (
         <section className="recent-ingredients" aria-label="최근 사용 원료">
           <span>최근 사용 원료</span>
           <div>
@@ -440,19 +447,22 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                       <input
                         id={`ingredient-${index}`}
                         value={row.ingredientName}
-                        onFocus={() => setActiveSuggestionRow(index)}
+                        readOnly={readOnly}
+                        onFocus={() => !readOnly && setActiveSuggestionRow(index)}
                         onChange={(event) => {
+                          if (readOnly) return
                           updateRow(index, 'ingredientName', event.target.value)
                           setActiveSuggestionRow(index)
                         }}
                         onBlur={(event) => {
+                          if (readOnly) return
                           recordRecentIngredient(event.target.value)
                           setActiveSuggestionRow((current) =>
                             current === index ? null : current,
                           )
                         }}
                         onPaste={(event) =>
-                          handleSpreadsheetPaste(index, 'ingredientName', event)
+                          !readOnly && handleSpreadsheetPaste(index, 'ingredientName', event)
                         }
                         placeholder="예: 비타민 C"
                       />
@@ -483,8 +493,9 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                       id={`amount-${index}`}
                       inputMode="decimal"
                       value={row.amount}
-                      onChange={(event) => updateRow(index, 'amount', event.target.value)}
-                      onPaste={(event) => handleAmountPaste(index, event)}
+                      readOnly={readOnly}
+                      onChange={(event) => !readOnly && updateRow(index, 'amount', event.target.value)}
+                      onPaste={(event) => !readOnly && handleAmountPaste(index, event)}
                       placeholder="0"
                     />
                   </td>
@@ -496,6 +507,7 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                       <select
                         id={`unit-${index}`}
                         value={row.unit}
+                        disabled={readOnly}
                         onChange={(event) => updateRow(index, 'unit', event.target.value)}
                       >
                         <option value="mg">mg</option>
@@ -503,24 +515,26 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                         <option value="%">%</option>
                         <option value="ppm">ppm</option>
                       </select>
-                      <div className="unit-conversion-actions">
-                        <button
-                          type="button"
-                          aria-label={`${index + 1}행 mg로 변환`}
-                          disabled={!canConvertUnit(row, 'mg')}
-                          onClick={() => convertUnit(index, 'mg')}
-                        >
-                          mg
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`${index + 1}행 g로 변환`}
-                          disabled={!canConvertUnit(row, 'g')}
-                          onClick={() => convertUnit(index, 'g')}
-                        >
-                          g
-                        </button>
-                      </div>
+                      {!readOnly && (
+                        <div className="unit-conversion-actions">
+                          <button
+                            type="button"
+                            aria-label={`${index + 1}행 mg로 변환`}
+                            disabled={!canConvertUnit(row, 'mg')}
+                            onClick={() => convertUnit(index, 'mg')}
+                          >
+                            mg
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`${index + 1}행 g로 변환`}
+                            disabled={!canConvertUnit(row, 'g')}
+                            onClick={() => convertUnit(index, 'g')}
+                          >
+                            g
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -531,8 +545,9 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                       id={`ratio-${index}`}
                       inputMode="decimal"
                       value={row.ratio}
-                      onChange={(event) => updateRow(index, 'ratio', event.target.value)}
-                      onPaste={(event) => handleSpreadsheetPaste(index, 'ratio', event)}
+                      readOnly={readOnly}
+                      onChange={(event) => !readOnly && updateRow(index, 'ratio', event.target.value)}
+                      onPaste={(event) => !readOnly && handleSpreadsheetPaste(index, 'ratio', event)}
                       placeholder="%"
                     />
                   </td>
@@ -543,26 +558,35 @@ export function FormulaInputTable({ rows, onChange }: Props) {
                     <input
                       id={`note-${index}`}
                       value={row.note}
-                      onChange={(event) => updateRow(index, 'note', event.target.value)}
-                      onPaste={(event) => handleSpreadsheetPaste(index, 'note', event)}
+                      readOnly={readOnly}
+                      onChange={(event) => !readOnly && updateRow(index, 'note', event.target.value)}
+                      onPaste={(event) => !readOnly && handleSpreadsheetPaste(index, 'note', event)}
                       placeholder="역할, 맛, 색, 이슈"
                     />
                   </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => removeRow(index)}
-                    >
-                      삭제
-                    </button>
-                  </td>
+                  {!readOnly && (
+                    <td>
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => removeRow(index)}
+                      >
+                        삭제
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })}
           </tbody>
         </table>
       </div>
+
+      {!readOnly && (
+        <button type="button" className="formula-add-row-btn" onClick={addRow}>
+          + 원료 행 추가
+        </button>
+      )}
 
       <section
         className={`formula-summary${formulaSummary.isRatioOverLimit ? ' is-warning' : ''}`}
@@ -901,6 +925,17 @@ function normalizeUnit(unit: string, fallbackUnit: string) {
 
 function normalizeUnitKey(unit: string) {
   return unit.toLocaleLowerCase('ko-KR').replace(/\s+/g, '')
+}
+
+function autoRecalculateRatios(rows: FormulaRow[]): FormulaRow[] {
+  const ratioBasis = getRatioCalculationBasis(rows)
+  if (!ratioBasis) return rows
+
+  return rows.map((row) => {
+    const amount = parseFormulaNumber(row.amount)
+    if (amount === null || normalizeUnit(row.unit, 'mg') !== ratioBasis.unit) return row
+    return { ...row, ratio: formatRatio((amount / ratioBasis.totalAmount) * 100) }
+  })
 }
 
 function canConvertUnit(row: FormulaRow, targetUnit: 'mg' | 'g') {

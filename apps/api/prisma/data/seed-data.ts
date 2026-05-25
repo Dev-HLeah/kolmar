@@ -10,7 +10,6 @@ type SeedOperationClient = {
   evidenceItem: UpsertDelegate;
   evidenceLink: UpsertDelegate;
   evidenceSource: UpsertDelegate;
-  experimentGroup: UpsertDelegate;
   formulaTry: UpsertDelegate;
   ingredient: UpsertDelegate;
   packagingOption: UpsertDelegate;
@@ -19,8 +18,6 @@ type SeedOperationClient = {
   productFormulaIngredient: UpsertDelegate;
   rawExternalRecord: UpsertDelegate;
   tryIngredient: UpsertDelegate;
-  tryMark: UpsertDelegate;
-  tryTestResult: UpsertDelegate;
   vectorDocument: UpsertDelegate;
 };
 
@@ -302,13 +299,12 @@ async function upsertSeedData(
     });
   }
 
-  // 3. 기존 제품 1 (위 건강 고형제)
+  // 3. 제품 1 (위 건강 고형제)
   await prisma.product.upsert({
     where: { id: 'seed-product-kolmar-solid-baseline' },
     update: {
       category: '건강기능식품',
-      description:
-        '신물 억제 고형제 개발의 기준으로 삼는 콜마 특화 츄어블 처방',
+      description: '신물 억제 고형제 개발의 기준으로 삼는 콜마 특화 츄어블 처방',
       dosageFormId: 'seed-dosage-chewable-tablet',
       function: '신물 억제 보조',
       name: '콜마 고형제 기준 처방',
@@ -320,8 +316,7 @@ async function upsertSeedData(
     create: {
       id: 'seed-product-kolmar-solid-baseline',
       category: '건강기능식품',
-      description:
-        '신물 억제 고형제 개발의 기준으로 삼는 콜마 특화 츄어블 처방',
+      description: '신물 억제 고형제 개발의 기준으로 삼는 콜마 특화 츄어블 처방',
       dosageFormId: 'seed-dosage-chewable-tablet',
       function: '신물 억제 보조',
       name: '콜마 고형제 기준 처방',
@@ -362,7 +357,7 @@ async function upsertSeedData(
     });
   }
 
-  // 3-1. 신규 제품 2 (피로개선 젤리)
+  // 3-1. 제품 2 (피로개선 젤리)
   await prisma.product.upsert({
     where: { id: 'seed-product-fatigue-jelly' },
     update: {
@@ -420,7 +415,7 @@ async function upsertSeedData(
     });
   }
 
-  // 3-2. 신규 제품 3 (눈 건강 연질캡슐)
+  // 3-2. 제품 3 (눈 건강 연질캡슐)
   await prisma.product.upsert({
     where: { id: 'seed-product-eye-softgel' },
     update: {
@@ -478,7 +473,7 @@ async function upsertSeedData(
     });
   }
 
-  // 3-3. 신규 제품 4 (뼈 건강 정제)
+  // 3-3. 제품 4 (뼈 건강 정제)
   await prisma.product.upsert({
     where: { id: 'seed-product-bone-tablet' },
     update: {
@@ -536,53 +531,43 @@ async function upsertSeedData(
     });
   }
 
-  // 4. 개발 프로젝트 & 실험군 & 시도
+  // 4. 개발 프로젝트 & Try (그룹 없이 프로젝트 직접 연결)
   await prisma.developmentProject.upsert({
     where: { id: 'seed-project-reflux-tablet' },
     update: {
+      background: '위 건강 개선을 원하는 소비자 수요 증가로 기준 처방 개선 필요',
       desiredForm: '츄어블 정제',
       function: '신물 억제 보조',
       goal: '기준 처방을 바탕으로 맛, 색, 붕해 안정성을 개선한다.',
       name: '신물 억제 고형제 개발',
+      objective: '비타민 C 산미와 아연 관능을 개선한 츄어블 정제 처방 확정',
       sourceFormulaId: 'seed-formula-kolmar-solid-baseline-v1',
       sourceProductId: 'seed-product-kolmar-solid-baseline',
       target: '위 건강',
     },
     create: {
       id: 'seed-project-reflux-tablet',
+      background: '위 건강 개선을 원하는 소비자 수요 증가로 기준 처방 개선 필요',
       desiredForm: '츄어블 정제',
       function: '신물 억제 보조',
       goal: '기준 처방을 바탕으로 맛, 색, 붕해 안정성을 개선한다.',
       name: '신물 억제 고형제 개발',
+      objective: '비타민 C 산미와 아연 관능을 개선한 츄어블 정제 처방 확정',
       sourceFormulaId: 'seed-formula-kolmar-solid-baseline-v1',
       sourceProductId: 'seed-product-kolmar-solid-baseline',
       target: '위 건강',
     },
   });
 
-  await prisma.experimentGroup.upsert({
-    where: { id: 'seed-group-stability' },
-    update: {
-      name: '안정성 개선 그룹',
-      projectId: 'seed-project-reflux-tablet',
-      purpose: '고형제 가속 안정성과 관능 이슈를 함께 확인한다.',
-    },
-    create: {
-      id: 'seed-group-stability',
-      name: '안정성 개선 그룹',
-      projectId: 'seed-project-reflux-tablet',
-      purpose: '고형제 가속 안정성과 관능 이슈를 함께 확인한다.',
-    },
-  });
-
-  // Try 1
+  // Try 1 - projectId 직접 연결
   await prisma.formulaTry.upsert({
     where: { id: 'seed-try-001' },
     update: {
       dosageForm: '츄어블 정제',
-      groupId: 'seed-group-stability',
       manufacturingProcess: '혼합 - 타정 - PTP 포장',
-      memo: '초기 기준 처방. 연구자가 테스트 결과를 추가하며 후보 여부를 판단한다.',
+      memo: '초기 기준 처방. 비타민 C 500mg 기준으로 관능과 붕해 안정성 확인.',
+      projectId: 'seed-project-reflux-tablet',
+      starred: true,
       status: 'PLANNED',
       title: '기준 처방',
       tryNumber: 1,
@@ -590,9 +575,10 @@ async function upsertSeedData(
     create: {
       id: 'seed-try-001',
       dosageForm: '츄어블 정제',
-      groupId: 'seed-group-stability',
       manufacturingProcess: '혼합 - 타정 - PTP 포장',
-      memo: '초기 기준 처방. 연구자가 테스트 결과를 추가하며 후보 여부를 판단한다.',
+      memo: '초기 기준 처방. 비타민 C 500mg 기준으로 관능과 붕해 안정성 확인.',
+      projectId: 'seed-project-reflux-tablet',
+      starred: true,
       status: 'PLANNED',
       title: '기준 처방',
       tryNumber: 1,
@@ -622,52 +608,15 @@ async function upsertSeedData(
     });
   }
 
-  await prisma.tryTestResult.upsert({
-    where: { id: 'seed-result-001' },
-    update: {
-      judgment: '적합',
-      measuredItem: '붕해 시간',
-      measuredValue: '12',
-      memo: 'seed 기준값. 실제 연구 결과로 교체 가능하다.',
-      testPurpose: '초기 고형제 안정성 확인',
-      tryId: 'seed-try-001',
-      unit: '분',
-    },
-    create: {
-      id: 'seed-result-001',
-      judgment: '적합',
-      measuredItem: '붕해 시간',
-      measuredValue: '12',
-      memo: 'seed 기준값. 실제 연구 결과로 교체 가능하다.',
-      testPurpose: '초기 고형제 안정성 확인',
-      tryId: 'seed-try-001',
-      unit: '분',
-    },
-  });
-
-  await prisma.tryMark.upsert({
-    where: { id: 'seed-mark-001' },
-    update: {
-      reason: '비교 기준으로 유지할 의미 있는 시도',
-      tryId: 'seed-try-001',
-      type: 'BASELINE_CANDIDATE',
-    },
-    create: {
-      id: 'seed-mark-001',
-      reason: '비교 기준으로 유지할 의미 있는 시도',
-      tryId: 'seed-try-001',
-      type: 'BASELINE_CANDIDATE',
-    },
-  });
-
-  // Try 2 (신규 추가: 마그네슘 추가 시도)
+  // Try 2
   await prisma.formulaTry.upsert({
     where: { id: 'seed-try-002' },
     update: {
       dosageForm: '츄어블 정제',
-      groupId: 'seed-group-stability',
       manufacturingProcess: '혼합 - 마그네슘 코팅 - 타정 - PTP 포장',
-      memo: '마그네슘 추가 후 맛 변화 관찰',
+      memo: '마그네슘 추가 후 맛 변화 관찰. 신경 안정 효과 시너지 확인 목적.',
+      projectId: 'seed-project-reflux-tablet',
+      starred: false,
       status: 'IN_PROGRESS',
       title: '마그네슘 강화 처방',
       tryNumber: 2,
@@ -675,9 +624,10 @@ async function upsertSeedData(
     create: {
       id: 'seed-try-002',
       dosageForm: '츄어블 정제',
-      groupId: 'seed-group-stability',
       manufacturingProcess: '혼합 - 마그네슘 코팅 - 타정 - PTP 포장',
-      memo: '마그네슘 추가 후 맛 변화 관찰',
+      memo: '마그네슘 추가 후 맛 변화 관찰. 신경 안정 효과 시너지 확인 목적.',
+      projectId: 'seed-project-reflux-tablet',
+      starred: false,
       status: 'IN_PROGRESS',
       title: '마그네슘 강화 처방',
       tryNumber: 2,
@@ -722,38 +672,27 @@ async function upsertSeedData(
   await prisma.developmentProject.upsert({
     where: { id: 'seed-project-fatigue-jelly' },
     update: {
+      background: '홍삼 제품 관능 불만 피드백 접수 후 개선 프로젝트 시작',
       desiredForm: '젤리',
       function: '피로 개선 및 스트레스 완화',
       goal: '홍삼 쓴맛을 낮추고 스틱 젤리 안정성을 검토한다.',
       name: '활력 젤리 관능 개선',
+      objective: '홍삼 쓴맛 마스킹 처방 확정 및 스틱 포장 안정성 확보',
       sourceFormulaId: 'seed-formula-fatigue-jelly-v1',
       sourceProductId: 'seed-product-fatigue-jelly',
       target: '직장인',
     },
     create: {
       id: 'seed-project-fatigue-jelly',
+      background: '홍삼 제품 관능 불만 피드백 접수 후 개선 프로젝트 시작',
       desiredForm: '젤리',
       function: '피로 개선 및 스트레스 완화',
       goal: '홍삼 쓴맛을 낮추고 스틱 젤리 안정성을 검토한다.',
       name: '활력 젤리 관능 개선',
+      objective: '홍삼 쓴맛 마스킹 처방 확정 및 스틱 포장 안정성 확보',
       sourceFormulaId: 'seed-formula-fatigue-jelly-v1',
       sourceProductId: 'seed-product-fatigue-jelly',
       target: '직장인',
-    },
-  });
-
-  await prisma.experimentGroup.upsert({
-    where: { id: 'seed-group-fatigue-sensory' },
-    update: {
-      name: '관능 개선 그룹',
-      projectId: 'seed-project-fatigue-jelly',
-      purpose: '홍삼 쓴맛, 산미, 젤리 탄성 균형을 확인한다.',
-    },
-    create: {
-      id: 'seed-group-fatigue-sensory',
-      name: '관능 개선 그룹',
-      projectId: 'seed-project-fatigue-jelly',
-      purpose: '홍삼 쓴맛, 산미, 젤리 탄성 균형을 확인한다.',
     },
   });
 
@@ -761,9 +700,10 @@ async function upsertSeedData(
     where: { id: 'seed-try-fatigue-001' },
     update: {
       dosageForm: '젤리',
-      groupId: 'seed-group-fatigue-sensory',
       manufacturingProcess: '원료 용해 - 겔화 - 스틱 충전',
-      memo: '홍삼 기준 처방 관능 확인',
+      memo: '홍삼 기준 처방 관능 확인. 쓴맛 강도 측정 기준 데이터 수집.',
+      projectId: 'seed-project-fatigue-jelly',
+      starred: true,
       status: 'PLANNED',
       title: '홍삼 기준 젤리',
       tryNumber: 1,
@@ -771,9 +711,10 @@ async function upsertSeedData(
     create: {
       id: 'seed-try-fatigue-001',
       dosageForm: '젤리',
-      groupId: 'seed-group-fatigue-sensory',
       manufacturingProcess: '원료 용해 - 겔화 - 스틱 충전',
-      memo: '홍삼 기준 처방 관능 확인',
+      memo: '홍삼 기준 처방 관능 확인. 쓴맛 강도 측정 기준 데이터 수집.',
+      projectId: 'seed-project-fatigue-jelly',
+      starred: true,
       status: 'PLANNED',
       title: '홍삼 기준 젤리',
       tryNumber: 1,
@@ -784,9 +725,10 @@ async function upsertSeedData(
     where: { id: 'seed-try-fatigue-002' },
     update: {
       dosageForm: '젤리',
-      groupId: 'seed-group-fatigue-sensory',
       manufacturingProcess: '원료 용해 - 산미 조절 - 겔화 - 스틱 충전',
-      memo: '비타민 C 산미를 줄이고 감미 밸런스 확인',
+      memo: '비타민 C 산미를 줄이고 감미 밸런스 확인. 천연 감미료 비율 변경.',
+      projectId: 'seed-project-fatigue-jelly',
+      starred: false,
       status: 'DRAFT',
       title: '산미 조정 젤리',
       tryNumber: 2,
@@ -794,27 +736,13 @@ async function upsertSeedData(
     create: {
       id: 'seed-try-fatigue-002',
       dosageForm: '젤리',
-      groupId: 'seed-group-fatigue-sensory',
       manufacturingProcess: '원료 용해 - 산미 조절 - 겔화 - 스틱 충전',
-      memo: '비타민 C 산미를 줄이고 감미 밸런스 확인',
+      memo: '비타민 C 산미를 줄이고 감미 밸런스 확인. 천연 감미료 비율 변경.',
+      projectId: 'seed-project-fatigue-jelly',
+      starred: false,
       status: 'DRAFT',
       title: '산미 조정 젤리',
       tryNumber: 2,
-    },
-  });
-
-  await prisma.tryMark.upsert({
-    where: { id: 'seed-mark-fatigue-001' },
-    update: {
-      reason: '관능 개선 기준으로 비교 가치가 높은 시도',
-      tryId: 'seed-try-fatigue-001',
-      type: 'PROMISING',
-    },
-    create: {
-      id: 'seed-mark-fatigue-001',
-      reason: '관능 개선 기준으로 비교 가치가 높은 시도',
-      tryId: 'seed-try-fatigue-001',
-      type: 'PROMISING',
     },
   });
 
@@ -822,38 +750,27 @@ async function upsertSeedData(
   await prisma.developmentProject.upsert({
     where: { id: 'seed-project-eye-softgel' },
     update: {
+      background: '루테인 아이케어 출시 후 산패 이슈 클레임 접수로 안정성 재검토',
       desiredForm: '연질캡슐',
       function: '눈 건강',
       goal: '루테인 산패 안정성과 캡슐 충전 공정을 검토한다.',
       name: '루테인 연질캡슐 안정성 검토',
+      objective: '오일 베이스 산패 방지 처방 확정 및 캡슐 피막 안정성 확보',
       sourceFormulaId: 'seed-formula-eye-softgel-v1',
       sourceProductId: 'seed-product-eye-softgel',
       target: '디지털 작업자',
     },
     create: {
       id: 'seed-project-eye-softgel',
+      background: '루테인 아이케어 출시 후 산패 이슈 클레임 접수로 안정성 재검토',
       desiredForm: '연질캡슐',
       function: '눈 건강',
       goal: '루테인 산패 안정성과 캡슐 충전 공정을 검토한다.',
       name: '루테인 연질캡슐 안정성 검토',
+      objective: '오일 베이스 산패 방지 처방 확정 및 캡슐 피막 안정성 확보',
       sourceFormulaId: 'seed-formula-eye-softgel-v1',
       sourceProductId: 'seed-product-eye-softgel',
       target: '디지털 작업자',
-    },
-  });
-
-  await prisma.experimentGroup.upsert({
-    where: { id: 'seed-group-eye-stability' },
-    update: {
-      name: '산패 안정성 그룹',
-      projectId: 'seed-project-eye-softgel',
-      purpose: '오일 베이스와 충전 안정성을 확인한다.',
-    },
-    create: {
-      id: 'seed-group-eye-stability',
-      name: '산패 안정성 그룹',
-      projectId: 'seed-project-eye-softgel',
-      purpose: '오일 베이스와 충전 안정성을 확인한다.',
     },
   });
 
@@ -861,9 +778,10 @@ async function upsertSeedData(
     where: { id: 'seed-try-eye-001' },
     update: {
       dosageForm: '연질캡슐',
-      groupId: 'seed-group-eye-stability',
       manufacturingProcess: '오일 혼합 - 캡슐 충전 - 블리스터 포장',
-      memo: '루테인 기준 처방 산패 안정성 확인',
+      memo: '루테인 기준 처방 산패 안정성 확인. 기존 처방 동일 조건 재현.',
+      projectId: 'seed-project-eye-softgel',
+      starred: false,
       status: 'PLANNED',
       title: '루테인 기준 캡슐',
       tryNumber: 1,
@@ -871,9 +789,10 @@ async function upsertSeedData(
     create: {
       id: 'seed-try-eye-001',
       dosageForm: '연질캡슐',
-      groupId: 'seed-group-eye-stability',
       manufacturingProcess: '오일 혼합 - 캡슐 충전 - 블리스터 포장',
-      memo: '루테인 기준 처방 산패 안정성 확인',
+      memo: '루테인 기준 처방 산패 안정성 확인. 기존 처방 동일 조건 재현.',
+      projectId: 'seed-project-eye-softgel',
+      starred: false,
       status: 'PLANNED',
       title: '루테인 기준 캡슐',
       tryNumber: 1,
@@ -900,23 +819,19 @@ async function upsertSeedData(
     where: { id: 'seed-evidence-item-vitamin-c' },
     update: {
       grade: 'official',
-      rawText:
-        '공개 기준 규격 데이터는 원문 출처를 함께 저장하고 내부 근거로 재사용한다.',
+      rawText: '공개 기준 규격 데이터는 원문 출처를 함께 저장하고 내부 근거로 재사용한다.',
       sourceId: 'seed-evidence-source-mfds',
       sourceUrl: 'https://www.foodsafetykorea.go.kr',
-      summary:
-        '비타민 C 고형제 처방에서 산미, 함량, 기준 규격 확인이 필요한 seed 근거입니다.',
+      summary: '비타민 C 고형제 처방에서 산미, 함량, 기준 규격 확인이 필요한 seed 근거입니다.',
       title: '비타민 C 고형제 기준 규격 참고',
     },
     create: {
       id: 'seed-evidence-item-vitamin-c',
       grade: 'official',
-      rawText:
-        '공개 기준 규격 데이터는 원문 출처를 함께 저장하고 내부 근거로 재사용한다.',
+      rawText: '공개 기준 규격 데이터는 원문 출처를 함께 저장하고 내부 근거로 재사용한다.',
       sourceId: 'seed-evidence-source-mfds',
       sourceUrl: 'https://www.foodsafetykorea.go.kr',
-      summary:
-        '비타민 C 고형제 처방에서 산미, 함량, 기준 규격 확인이 필요한 seed 근거입니다.',
+      summary: '비타민 C 고형제 처방에서 산미, 함량, 기준 규격 확인이 필요한 seed 근거입니다.',
       title: '비타민 C 고형제 기준 규격 참고',
     },
   });
@@ -1016,8 +931,7 @@ async function upsertSeedData(
   await prisma.vectorDocument.upsert({
     where: { id: 'seed-vector-vitamin-c-guidance' },
     update: {
-      content:
-        '비타민 C 고형제 처방은 산미, 기준 규격, 배합 안정성을 함께 검토해야 한다.',
+      content: '비타민 C 고형제 처방은 산미, 기준 규격, 배합 안정성을 함께 검토해야 한다.',
       entityId: 'seed-evidence-item-vitamin-c',
       entityType: 'EvidenceItem',
       metadata: {
@@ -1028,8 +942,7 @@ async function upsertSeedData(
     },
     create: {
       id: 'seed-vector-vitamin-c-guidance',
-      content:
-        '비타민 C 고형제 처방은 산미, 기준 규격, 배합 안정성을 함께 검토해야 한다.',
+      content: '비타민 C 고형제 처방은 산미, 기준 규격, 배합 안정성을 함께 검토해야 한다.',
       entityId: 'seed-evidence-item-vitamin-c',
       entityType: 'EvidenceItem',
       metadata: {

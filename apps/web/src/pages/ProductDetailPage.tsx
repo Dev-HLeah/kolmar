@@ -4,7 +4,14 @@ import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { apiDelete, apiGet, apiPatch } from '../api/client'
 import './WorkflowPages.css'
 
-type ProductStatus = 'RELEASED' | 'PENDING_RELEASE' | 'UNDER_REVIEW' | 'DISCONTINUED'
+type ProductStatus = 'CANDIDATE' | 'RELEASED' | 'PENDING_RELEASE' | 'UNDER_REVIEW' | 'DISCONTINUED'
+
+type SourceTryInfo = {
+  tryId: string
+  tryNumber: number
+  projectId: string
+  projectName: string
+}
 
 type ProductSummary = {
   name: string
@@ -12,9 +19,11 @@ type ProductSummary = {
   description: string
   referenceNote: string
   status: ProductStatus
+  sourceTry: SourceTryInfo | null
 }
 
 type MetadataDraft = {
+  name: string
   description: string
   referenceNote: string
 }
@@ -34,15 +43,14 @@ type ApiProduct = {
   description?: string | null
   referenceNote?: string | null
   status?: ProductStatus | null
-  dosageForm?: {
-    name?: string | null
+  dosageForm?: { name?: string | null } | null
+  packaging?: { name?: string | null } | null
+  formulas?: Array<{ ingredients?: ApiFormulaIngredient[] }>
+  sourceTry?: {
+    id: string
+    tryNumber: number
+    project?: { id: string; name: string } | null
   } | null
-  packaging?: {
-    name?: string | null
-  } | null
-  formulas?: Array<{
-    ingredients?: ApiFormulaIngredient[]
-  }>
 }
 
 type ApiFormulaIngredient = {
@@ -85,6 +93,7 @@ const referenceSummary: ProductSummary = {
   description: '기존 제품 배합 정보를 기준 자산으로 관리',
   referenceNote: '',
   status: 'UNDER_REVIEW',
+  sourceTry: null,
 }
 
 const fallbackNotice = 'API 연결 실패로 샘플 기준 처방을 표시합니다.'
@@ -141,6 +150,7 @@ export function ProductDetailPage() {
   const { productId } = useParams()
   const [summary, setSummary] = useState(referenceSummary)
   const [metadataDraft, setMetadataDraft] = useState<MetadataDraft>({
+    name: referenceSummary.name,
     description: referenceSummary.description,
     referenceNote: referenceSummary.referenceNote,
   })
@@ -154,6 +164,7 @@ export function ProductDetailPage() {
   >([])
   const [similarNotice, setSimilarNotice] = useState('')
   const [savedMetadata, setSavedMetadata] = useState<MetadataDraft>({
+    name: referenceSummary.name,
     description: referenceSummary.description,
     referenceNote: referenceSummary.referenceNote,
   })
@@ -161,6 +172,7 @@ export function ProductDetailPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   const isDirty =
+    metadataDraft.name !== savedMetadata.name ||
     metadataDraft.description !== savedMetadata.description ||
     metadataDraft.referenceNote !== savedMetadata.referenceNote
 
@@ -183,6 +195,7 @@ export function ProductDetailPage() {
 
         const nextSummary = toProductSummary(product)
         const nextMetadata = {
+          name: nextSummary.name,
           description: nextSummary.description,
           referenceNote: nextSummary.referenceNote,
         }
@@ -216,6 +229,7 @@ export function ProductDetailPage() {
       } catch {
         if (isActive) {
           const fallbackMetadata = {
+            name: referenceSummary.name,
             description: referenceSummary.description,
             referenceNote: referenceSummary.referenceNote,
           }
@@ -263,11 +277,13 @@ export function ProductDetailPage() {
 
     try {
       const updatedProduct = await apiPatch<ApiProduct, MetadataDraft>(`/products/${productId}`, {
+        name: metadataDraft.name,
         description: metadataDraft.description,
         referenceNote: metadataDraft.referenceNote,
       })
       const nextSummary = toProductSummary(updatedProduct)
       const nextMetadata = {
+        name: nextSummary.name,
         description: nextSummary.description,
         referenceNote: nextSummary.referenceNote,
       }
@@ -333,6 +349,23 @@ export function ProductDetailPage() {
 
       {notice ? <p className="local-notice">{notice}</p> : null}
 
+      {summary.sourceTry && (
+        <section className="workflow-panel source-try-panel">
+          <div className="panel-heading compact">
+            <h3>출처 프로젝트</h3>
+          </div>
+          <div className="source-try-info">
+            <Link to={`/projects/${summary.sourceTry.projectId}`}>
+              {summary.sourceTry.projectName}
+            </Link>
+            <span className="source-try-divider">›</span>
+            <Link to={`/projects/${summary.sourceTry.projectId}`}>
+              try#{summary.sourceTry.tryNumber}
+            </Link>
+          </div>
+        </section>
+      )}
+
       <section className="workflow-panel">
         <div className="panel-heading compact">
           <h3>원료 배합 정보</h3>
@@ -382,6 +415,17 @@ export function ProductDetailPage() {
           </button>
         </div>
         <div className="form-grid single-column">
+          {summary.status === 'CANDIDATE' && (
+            <label>
+              제품명 <span className="candidate-edit-hint">(후보 상태에서만 수정 가능)</span>
+              <input
+                value={metadataDraft.name}
+                onChange={(event) =>
+                  setMetadataDraft((current) => ({ ...current, name: event.target.value }))
+                }
+              />
+            </label>
+          )}
           <label>
             제품 설명
             <textarea
@@ -543,6 +587,15 @@ export function ProductDetailPage() {
 }
 
 function toProductSummary(product: ApiProduct): ProductSummary {
+  const sourceTry = product.sourceTry?.project
+    ? {
+        tryId: product.sourceTry.id,
+        tryNumber: product.sourceTry.tryNumber,
+        projectId: product.sourceTry.project.id,
+        projectName: product.sourceTry.project.name,
+      }
+    : null
+
   return {
     name: product.name,
     headline: [
@@ -553,6 +606,7 @@ function toProductSummary(product: ApiProduct): ProductSummary {
     description: product.description?.trim() ?? '',
     referenceNote: product.referenceNote?.trim() ?? '',
     status: product.status ?? 'UNDER_REVIEW',
+    sourceTry,
   }
 }
 
@@ -590,6 +644,7 @@ function formatRatio(value: number) {
 }
 
 const STATUS_OPTIONS: { value: ProductStatus; label: string }[] = [
+  { value: 'CANDIDATE', label: '후보' },
   { value: 'RELEASED', label: '출시' },
   { value: 'PENDING_RELEASE', label: '출시 대기' },
   { value: 'UNDER_REVIEW', label: '검수중' },
@@ -597,6 +652,7 @@ const STATUS_OPTIONS: { value: ProductStatus; label: string }[] = [
 ]
 
 const STATUS_CLASS: Record<ProductStatus, string> = {
+  CANDIDATE: 'status-opt-candidate',
   RELEASED: 'status-opt-released',
   PENDING_RELEASE: 'status-opt-pending',
   UNDER_REVIEW: 'status-opt-review',
