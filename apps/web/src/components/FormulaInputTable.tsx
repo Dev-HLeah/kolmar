@@ -46,9 +46,19 @@ const voiceDraftRows = [
 const recentIngredientStorageKey = 'kolma:recent-ingredients'
 const maxRecentIngredientCount = 8
 const formulaColumnKeys = ['ingredientName', 'amount', 'unit', 'ratio', 'note'] as const
-const supportedUnits = new Set(['mg', 'g', '%', 'ppm'])
-const convertibleUnits = new Set(['mg', 'g'])
+type ConvertibleUnit = 'mcg' | 'mg' | 'g'
+
+const TO_MG: Record<ConvertibleUnit, number> = { mcg: 0.001, mg: 1, g: 1000 }
+
+const supportedUnits = new Set(['mcg', 'mg', 'g', '%', 'ppm'])
+const convertibleUnits = new Set(['mcg', 'mg', 'g'])
 const unitAliases = new Map([
+  ['mcg', 'mcg'],
+  ['μg', 'mcg'],
+  ['ug', 'mcg'],
+  ['microgram', 'mcg'],
+  ['micrograms', 'mcg'],
+  ['마이크로그램', 'mcg'],
   ['mg', 'mg'],
   ['milligram', 'mg'],
   ['milligrams', 'mg'],
@@ -92,7 +102,7 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
     }
   }
 
-  function convertUnit(index: number, targetUnit: 'mg' | 'g') {
+  function convertUnit(index: number, targetUnit: ConvertibleUnit) {
     const row = rows[index]
 
     if (!row) {
@@ -113,7 +123,7 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
       return
     }
 
-    const convertedAmount = targetUnit === 'mg' ? amount * 1000 : amount / 1000
+    const convertedAmount = convertAmount(amount, row.unit as ConvertibleUnit, targetUnit)
     onChange(
       rows.map((currentRow, rowIndex) =>
         rowIndex === index
@@ -299,20 +309,28 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
     onChange(
       rows.map((row) => {
         const amount = parseFormulaNumber(row.amount)
+        if (amount === null) return row
 
-        if (amount === null || normalizeUnit(row.unit, 'mg') !== ratioBasis.unit) {
-          return row
+        const rowUnit = normalizeUnit(row.unit, 'mg')
+        let effectiveAmount: number
+
+        if (ratioBasis.isMixed) {
+          if (!convertibleUnits.has(rowUnit)) return row
+          effectiveAmount = amount * TO_MG[rowUnit as ConvertibleUnit]
+        } else {
+          if (rowUnit !== ratioBasis.unit) return row
+          effectiveAmount = amount
         }
 
         return {
           ...row,
-          ratio: formatRatio((amount / ratioBasis.totalAmount) * 100),
+          ratio: formatRatio((effectiveAmount / ratioBasis.totalAmount) * 100),
         }
       }),
     )
   }
 
-  function normalizeAmountsToUnit(targetUnit: 'mg' | 'g') {
+  function normalizeAmountsToUnit(targetUnit: ConvertibleUnit) {
     if (!canNormalizeAmountsToUnit(rows, targetUnit)) {
       return
     }
@@ -327,7 +345,7 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
 
         return {
           ...row,
-          amount: formatAmount(convertAmount(amount, row.unit, targetUnit)),
+          amount: formatAmount(convertAmount(amount, row.unit as ConvertibleUnit, targetUnit)),
           unit: targetUnit,
         }
       }),
@@ -510,6 +528,7 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
                         disabled={readOnly}
                         onChange={(event) => updateRow(index, 'unit', event.target.value)}
                       >
+                        <option value="mcg">mcg</option>
                         <option value="mg">mg</option>
                         <option value="g">g</option>
                         <option value="%">%</option>
@@ -517,6 +536,14 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
                       </select>
                       {!readOnly && (
                         <div className="unit-conversion-actions">
+                          <button
+                            type="button"
+                            aria-label={`${index + 1}행 mcg로 변환`}
+                            disabled={!canConvertUnit(row, 'mcg')}
+                            onClick={() => convertUnit(index, 'mcg')}
+                          >
+                            mcg
+                          </button>
                           <button
                             type="button"
                             aria-label={`${index + 1}행 mg로 변환`}
@@ -595,6 +622,14 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
         <span>입력 원료 {formulaSummary.rowCount}개</span>
         <span>함량 합계 {formulaSummary.amountLabel}</span>
         <span>비율 합계 {formulaSummary.ratioLabel}</span>
+        <button
+          type="button"
+          className="summary-action-button"
+          disabled={!formulaSummary.canNormalizeToMicrograms}
+          onClick={() => normalizeAmountsToUnit('mcg')}
+        >
+          mcg로 전체 통일
+        </button>
         <button
           type="button"
           className="summary-action-button"
@@ -713,6 +748,7 @@ function getFormulaSummary(rows: FormulaRow[]) {
     ratioLabel: `${formatSummaryNumber(totalRatio)}%`,
     isRatioOverLimit: totalRatio > 100,
     canCalculateRatio: ratioBasis !== null,
+    canNormalizeToMicrograms: canNormalizeAmountsToUnit(rows, 'mcg'),
     canNormalizeToMilligrams: canNormalizeAmountsToUnit(rows, 'mg'),
     canNormalizeToGrams: canNormalizeAmountsToUnit(rows, 'g'),
     ratioCalculationHint: ratioBasis ? null : getRatioCalculationHint(rows),
@@ -744,16 +780,24 @@ function getRatioCalculationBasis(rows: FormulaRow[]) {
   }
 
   const units = new Set(amountRows.map((row) => row.unit))
-  const totalAmount = amountRows.reduce((total, row) => total + row.amount, 0)
 
-  if (units.size !== 1 || totalAmount <= 0) {
-    return null
+  if (units.size === 1) {
+    const totalAmount = amountRows.reduce((total, row) => total + row.amount, 0)
+    if (totalAmount <= 0) return null
+    return { totalAmount, unit: amountRows[0].unit, isMixed: false }
   }
 
-  return {
-    totalAmount,
-    unit: amountRows[0].unit,
-  }
+  // Mixed mass units (mcg/mg/g): normalize everything to mg
+  const allMass = amountRows.every((row) => convertibleUnits.has(row.unit))
+  if (!allMass) return null
+
+  const totalAmountMg = amountRows.reduce(
+    (total, row) => total + row.amount * TO_MG[row.unit as ConvertibleUnit],
+    0,
+  )
+  if (totalAmountMg <= 0) return null
+
+  return { totalAmount: totalAmountMg, unit: 'mg' as const, isMixed: true }
 }
 
 function getRatioCalculationHint(rows: FormulaRow[]) {
@@ -763,14 +807,15 @@ function getRatioCalculationHint(rows: FormulaRow[]) {
     return '함량을 입력하면 비율을 계산할 수 있습니다.'
   }
 
-  if (new Set(amountRows.map((row) => row.unit)).size > 1) {
+  const units = new Set(amountRows.map((row) => row.unit))
+  if (units.size > 1 && !amountRows.every((row) => convertibleUnits.has(row.unit))) {
     return '단위가 섞여 있어 비율 계산 전 단위 통일이 필요합니다.'
   }
 
   return null
 }
 
-function canNormalizeAmountsToUnit(rows: FormulaRow[], targetUnit: 'mg' | 'g') {
+function canNormalizeAmountsToUnit(rows: FormulaRow[], targetUnit: ConvertibleUnit) {
   const amountRows = getAmountRows(rows)
 
   if (!amountRows.length) {
@@ -783,12 +828,12 @@ function canNormalizeAmountsToUnit(rows: FormulaRow[], targetUnit: 'mg' | 'g') {
   )
 }
 
-function convertAmount(amount: number, sourceUnit: string, targetUnit: 'mg' | 'g') {
+function convertAmount(amount: number, sourceUnit: ConvertibleUnit, targetUnit: ConvertibleUnit) {
   if (sourceUnit === targetUnit) {
     return amount
   }
 
-  return targetUnit === 'mg' ? amount * 1000 : amount / 1000
+  return amount * TO_MG[sourceUnit] / TO_MG[targetUnit]
 }
 
 function getAmountRows(rows: FormulaRow[]) {
@@ -933,12 +978,24 @@ function autoRecalculateRatios(rows: FormulaRow[]): FormulaRow[] {
 
   return rows.map((row) => {
     const amount = parseFormulaNumber(row.amount)
-    if (amount === null || normalizeUnit(row.unit, 'mg') !== ratioBasis.unit) return row
-    return { ...row, ratio: formatRatio((amount / ratioBasis.totalAmount) * 100) }
+    if (amount === null) return row
+
+    const rowUnit = normalizeUnit(row.unit, 'mg')
+    let effectiveAmount: number
+
+    if (ratioBasis.isMixed) {
+      if (!convertibleUnits.has(rowUnit)) return row
+      effectiveAmount = amount * TO_MG[rowUnit as ConvertibleUnit]
+    } else {
+      if (rowUnit !== ratioBasis.unit) return row
+      effectiveAmount = amount
+    }
+
+    return { ...row, ratio: formatRatio((effectiveAmount / ratioBasis.totalAmount) * 100) }
   })
 }
 
-function canConvertUnit(row: FormulaRow, targetUnit: 'mg' | 'g') {
+function canConvertUnit(row: FormulaRow, targetUnit: ConvertibleUnit) {
   return (
     row.unit !== targetUnit &&
     convertibleUnits.has(row.unit) &&

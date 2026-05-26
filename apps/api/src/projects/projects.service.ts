@@ -14,6 +14,7 @@ const formulaTryInclude = {
     include: {
       ingredient: true,
     },
+    orderBy: { id: 'asc' as const },
   },
   sourceProducts: {
     select: { id: true },
