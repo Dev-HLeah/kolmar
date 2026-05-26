@@ -1,6 +1,15 @@
 import { DEFAULT_USER_ROLE, type UserRole } from '../auth/roles'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
+const ABSOLUTE_URL_PATTERN = /^https?:\/\//i
+
+export function getApiUrl(path: string) {
+  const normalizedBaseUrl = ABSOLUTE_URL_PATTERN.test(API_BASE_URL)
+    ? API_BASE_URL
+    : `https://${API_BASE_URL}`
+
+  return `${normalizedBaseUrl.replace(/\/$/, '')}${path}`
+}
 
 let activeRole: UserRole = DEFAULT_USER_ROLE
 
@@ -13,7 +22,7 @@ export function getApiRole() {
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(getApiUrl(path), {
     ...init,
     headers: {
       ...init?.headers,

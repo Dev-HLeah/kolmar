@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useRef, useState } from 'react'
-import { apiGet, apiPost } from '../api/client'
+import { apiGet, apiPost, getApiUrl } from '../api/client'
 import './WorkflowPages.css'
 
 type KnowledgeDocument = {
@@ -120,7 +120,7 @@ export function KnowledgeBasePage() {
       formData.append('file', file)
       formData.append('sourceName', sourceName.trim() || '직접 업로드')
 
-      const response = await fetch('/api/evidence/knowledge-base/upload', {
+      const response = await fetch(getApiUrl('/evidence/knowledge-base/upload'), {
         method: 'POST',
         body: formData,
       })
