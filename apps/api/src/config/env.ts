@@ -33,8 +33,6 @@ export function getEnvFilePaths() {
 
   return [
     resolve(process.cwd(), envFileName),
-    resolve(process.cwd(), '../../', envFileName),
     resolve(process.cwd(), '.env'),
-    resolve(process.cwd(), '../../.env'),
   ];
 }
