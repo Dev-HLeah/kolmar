@@ -365,7 +365,7 @@ export function FormulaInputTable({ rows, onChange, readOnly = false, onApplySou
             {onApplySourceRows && (
               <button
                 type="button"
-                className="secondary-button"
+                className="secondary-button source-formula-btn"
                 onClick={onApplySourceRows}
               >
                 기준 제품 배합

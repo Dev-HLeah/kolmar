@@ -714,7 +714,7 @@
 
 .confirm-modal p,
 .confirm-modal label {
-  margin: 0 16px 16px;
+  margin: 16px 16px 16px;
 }
 
 .unsaved-actions {

@@ -64,6 +64,18 @@
   background: var(--surface-muted);
 }
 
+.source-formula-btn {
+  color: #6366f1;
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.source-formula-btn:hover {
+  color: #4338ca;
+  border-color: #a5b4fc;
+  background: #e0e7ff;
+}
+
 .text-button {
   min-width: 52px;
   padding: 0 10px;

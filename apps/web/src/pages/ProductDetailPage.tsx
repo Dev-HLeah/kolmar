@@ -507,7 +507,7 @@ export function ProductDetailPage() {
             <div className="panel-heading compact">
               <h3>저장되지 않은 변경사항</h3>
             </div>
-            <p>수정된 내용이 저장되지 않았습니다. 어떻게 하시겠습니까?</p>
+            <p>수정된 내용이 <strong>저장</strong>되지 않았습니다.</p>
             <div className="form-actions unsaved-actions">
               <button type="button" className="secondary-button" onClick={() => blocker.reset?.()}>
                 취소

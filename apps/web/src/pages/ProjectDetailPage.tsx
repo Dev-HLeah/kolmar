@@ -813,22 +813,26 @@ export function ProjectDetailPage() {
 
       {/* 저장 안 된 내용 경고 모달 */}
       {blocker.state === 'blocked' && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="저장 안 된 내용">
-          <div className="modal-panel unsaved-modal">
-            <h3>저장 안 된 내용이 있습니다</h3>
-            <p>이 Try의 변경 사항이 저장되지 않았습니다. 어떻게 하시겠습니까?</p>
-            <div className="unsaved-leave-actions">
-              <button type="button" className="btn-secondary" onClick={() => blocker.reset?.()}>
+        <div className="modal-backdrop" role="presentation">
+          <section className="workflow-panel confirm-modal" aria-label="저장되지 않은 변경사항">
+            <div className="panel-heading compact">
+              <h3>저장되지 않은 변경사항</h3>
+            </div>
+            <p>수정된 내용이 <strong>저장</strong>되지 않았습니다.</p>
+            <div className="form-actions unsaved-actions">
+              <button type="button" className="secondary-button" onClick={() => blocker.reset?.()}>
                 취소
               </button>
-              <button type="button" className="btn-danger" onClick={() => blocker.proceed?.()}>
-                나가기
-              </button>
-              <button type="button" className="primary-dashboard-button" onClick={handleSaveAndLeave}>
-                저장 후 나가기
-              </button>
+              <div className="unsaved-leave-actions">
+                <button type="button" className="danger-button" onClick={() => blocker.proceed?.()}>
+                  나가기
+                </button>
+                <button type="button" className="primary-dashboard-button" onClick={() => void handleSaveAndLeave()}>
+                  저장 후 나가기
+                </button>
+              </div>
             </div>
-          </div>
+          </section>
         </div>
       )}
     </div>
