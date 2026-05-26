@@ -1,7 +1,6 @@
 {
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "dist",
-  "framework": "vite",
+  "buildCommand": "pnpm --filter web run build",
+  "outputDirectory": "apps/web/dist",
   "routes": [
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
