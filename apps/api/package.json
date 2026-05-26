@@ -9,6 +9,17 @@
   "engines": {
     "node": ">=22.12.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@google/genai",
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "protobufjs",
+      "unrs-resolver"
+    ]
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
