@@ -13,6 +13,7 @@ type Props = {
   rows: FormulaRow[]
   onChange: (rows: FormulaRow[]) => void
   readOnly?: boolean
+  onApplySourceRows?: () => void
 }
 
 type IngredientSuggestion = {
@@ -87,7 +88,7 @@ const baseIngredientSuggestions: IngredientSuggestion[] = [
 
 type FormulaColumnKey = (typeof formulaColumnKeys)[number]
 
-export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
+export function FormulaInputTable({ rows, onChange, readOnly = false, onApplySourceRows }: Props) {
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false)
   const [recentIngredients, setRecentIngredients] = useState(readRecentIngredients)
   const [activeSuggestionRow, setActiveSuggestionRow] = useState<number | null>(null)
@@ -361,6 +362,15 @@ export function FormulaInputTable({ rows, onChange, readOnly = false }: Props) {
         </div>
         {!readOnly && (
           <div className="formula-actions">
+            {onApplySourceRows && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onApplySourceRows}
+              >
+                기준 제품 배합
+              </button>
+            )}
             <button
               type="button"
               className="secondary-button"

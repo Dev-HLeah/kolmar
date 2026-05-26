@@ -56,6 +56,47 @@ export class ProjectsService {
       },
     });
 
+    if (dto.sourceFormulaId) {
+      const sourceFormula = await this.prisma.productFormula.findUnique({
+        where: { id: dto.sourceFormulaId },
+        include: {
+          ingredients: {
+            include: { ingredient: true },
+            orderBy: { id: 'asc' as const },
+          },
+        },
+      });
+
+      if (sourceFormula) {
+        const ingredients = sourceFormula.ingredients
+          .filter((i) => i.ingredient?.name?.trim())
+          .map((i) => ({
+            ingredientName: i.ingredient.name,
+            amount: i.amount != null ? String(i.amount) : undefined,
+            unit: i.unit ?? undefined,
+            ratio: i.ratio != null ? String(i.ratio) : undefined,
+          }));
+
+        await this.prisma.formulaTry.create({
+          data: {
+            projectId: project.id,
+            tryNumber: 1,
+            status: 'DRAFT',
+            title: 'Try#1',
+            ...(ingredients.length > 0
+              ? {
+                  ingredients: {
+                    create: ingredients
+                      .map((ing) => toIngredientCreateInput(ing))
+                      .filter((v) => v !== undefined),
+                  },
+                }
+              : {}),
+          },
+        });
+      }
+    }
+
     return project;
   }
 

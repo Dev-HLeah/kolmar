@@ -58,6 +58,17 @@ type ApiProduct = {
   name: string
 }
 
+type ApiProductWithFormulas = ApiProduct & {
+  formulas?: Array<{
+    ingredients: Array<{
+      amount?: string | number | null
+      unit?: string | null
+      ratio?: string | number | null
+      ingredient?: { name?: string | null } | null
+    }>
+  }>
+}
+
 type DosageFormOption = {
   id: string
   name: string
@@ -129,6 +140,8 @@ export function ProjectDetailPage() {
   const [showRegisterConfirm, setShowRegisterConfirm] = useState(false)
 
   const [dosageFormOptions, setDosageFormOptions] = useState<DosageFormOption[]>([])
+  const [sourceRows, setSourceRows] = useState<FormulaRow[] | null>(null)
+  const [isLoadingSourceRows, setIsLoadingSourceRows] = useState(false)
 
   const selectedTry = useMemo(
     () => tries.find((t) => t.id === selectedTryId) ?? null,
@@ -371,6 +384,29 @@ export function ProjectDetailPage() {
       setNotice(localOnlyNotice)
     } finally {
       setIsRegisteringProduct(false)
+    }
+  }
+
+  async function handleApplySourceRows() {
+    if (!projectMeta.sourceProductId || !tryDraft) return
+
+    let rows = sourceRows
+    if (!rows) {
+      setIsLoadingSourceRows(true)
+      try {
+        const product = await apiGet<ApiProductWithFormulas>(`/products/${projectMeta.sourceProductId}`)
+        rows = productFormulaToRows(product)
+        setSourceRows(rows)
+      } catch {
+        setNotice('기준 제품 원료를 불러오지 못했습니다.')
+        return
+      } finally {
+        setIsLoadingSourceRows(false)
+      }
+    }
+
+    if (rows.length > 0) {
+      setTryDraft((d) => d ? { ...d, ingredients: [...rows!] } : d)
     }
   }
 
@@ -624,6 +660,11 @@ export function ProjectDetailPage() {
                 rows={tryDraft.ingredients}
                 onChange={(rows) => setTryDraft((d) => d ? { ...d, ingredients: rows } : d)}
                 readOnly={isLocked}
+                onApplySourceRows={
+                  projectMeta.sourceProductId && !isLocked && !isLoadingSourceRows
+                    ? () => { void handleApplySourceRows() }
+                    : undefined
+                }
               />
 
               {!isLocked && (
@@ -805,6 +846,20 @@ function toTryRow(apiTry: ApiFormulaTry): TryRow {
     ingredients: toFormulaRows(apiTry.ingredients ?? []),
     registeredProductId: apiTry.sourceProducts?.[0]?.id ?? null,
   }
+}
+
+function productFormulaToRows(product: ApiProductWithFormulas): FormulaRow[] {
+  const formula = product.formulas?.[0]
+  if (!formula) return []
+  return formula.ingredients
+    .filter((i) => i.ingredient?.name?.trim())
+    .map((i) => ({
+      ingredientName: i.ingredient!.name!.trim(),
+      amount: i.amount != null ? String(i.amount) : '',
+      unit: i.unit?.trim() || 'mg',
+      ratio: i.ratio != null ? String(i.ratio) : '',
+      note: '',
+    }))
 }
 
 function toFormulaRows(ingredients: ApiTryIngredient[]): FormulaRow[] {
