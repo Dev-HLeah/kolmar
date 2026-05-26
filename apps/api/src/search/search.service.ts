@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AI_PROVIDER_TOKEN, type AiProvider } from '../ai/ai-provider.interface';
 
-type SearchMatchType = 'structured' | 'mock-vector';
+type SearchMatchType = 'vector' | 'structured';
 
-type SearchResult = {
+export type SearchResult = {
   id: string;
   title: string;
   summary?: string | null;
@@ -11,11 +12,15 @@ type SearchResult = {
   sourceUrl?: string | null;
   grade: string;
   matchType: SearchMatchType;
+  distance?: number;
 };
 
 @Injectable()
 export class SearchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(AI_PROVIDER_TOKEN) private readonly aiProvider: AiProvider,
+  ) {}
 
   async search(query: string) {
     const normalizedQuery = query.trim();
@@ -27,76 +32,48 @@ export class SearchService {
       };
     }
 
-    const structuredResults =
-      await this.searchStructuredEvidence(normalizedQuery);
+    // 1. Generate query embedding
+    const queryEmbedding = await this.aiProvider.generateEmbedding(normalizedQuery);
+    const embeddingString = `[${queryEmbedding.join(',')}]`;
+
+    // 2. Perform vector search using cosine distance (<=>)
+    const vectorResults = await this.prisma.$queryRaw<
+      { 
+        id: string; 
+        entityId: string; 
+        content: string; 
+        distance: number; 
+        title?: string;
+        source?: string;
+      }[]
+    >`
+      SELECT 
+        v.id, 
+        v."entityId", 
+        v.content, 
+        (v.embedding <=> ${embeddingString}::vector) as distance,
+        v.metadata->>'title' as title,
+        v.metadata->>'source' as source
+      FROM "VectorDocument" v
+      ORDER BY distance ASC
+      LIMIT 10;
+    `;
+
+    // 3. Map results
+    const results: SearchResult[] = vectorResults.map((v) => ({
+      id: v.entityId || v.id,
+      title: v.title || 'Unknown Document',
+      summary: v.content.substring(0, 200),
+      source: v.source || 'Vector DB',
+      sourceUrl: null,
+      grade: 'internal',
+      matchType: 'vector',
+      distance: v.distance,
+    }));
 
     return {
       query: normalizedQuery,
-      results:
-        structuredResults.length > 0
-          ? structuredResults
-          : this.searchMockVector(normalizedQuery),
+      results,
     };
-  }
-
-  private async searchStructuredEvidence(
-    query: string,
-  ): Promise<SearchResult[]> {
-    const items = await this.prisma.evidenceItem.findMany({
-      where: {
-        OR: [
-          {
-            title: {
-              contains: query,
-              mode: 'insensitive',
-            },
-          },
-          {
-            summary: {
-              contains: query,
-              mode: 'insensitive',
-            },
-          },
-          {
-            rawText: {
-              contains: query,
-              mode: 'insensitive',
-            },
-          },
-        ],
-      },
-      take: 10,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        source: true,
-      },
-    });
-
-    return items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      summary: item.summary,
-      source: item.source.name,
-      sourceUrl: item.sourceUrl,
-      grade: item.grade,
-      matchType: 'structured',
-    }));
-  }
-
-  private searchMockVector(query: string): SearchResult[] {
-    return [
-      {
-        id: 'mock-vector-1',
-        title: `${query} 관련 근거 후보`,
-        summary:
-          'Supabase pgvector 연결 전 개발용 mock 결과입니다. 실제 연결 후 EvidenceItem/VectorDocument 기반 유사도 검색으로 교체합니다.',
-        source: 'mock-vector',
-        sourceUrl: null,
-        grade: 'mock',
-        matchType: 'mock-vector',
-      },
-    ];
   }
 }

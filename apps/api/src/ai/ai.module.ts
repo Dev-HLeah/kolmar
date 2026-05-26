@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaModule } from '../prisma/prisma.module';
 import { AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import { GeminiProvider } from './gemini.provider';
 import { MockAiProvider } from './mock-ai.provider';
@@ -8,6 +9,7 @@ import { RecommendationController } from './recommendation.controller';
 import { RecommendationService } from './recommendation.service';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [RecommendationController],
   providers: [
     {
@@ -29,5 +31,6 @@ import { RecommendationService } from './recommendation.service';
     },
     RecommendationService,
   ],
+  exports: [AI_PROVIDER_TOKEN],
 })
 export class AiModule {}

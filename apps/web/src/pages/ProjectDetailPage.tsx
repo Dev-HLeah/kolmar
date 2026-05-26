@@ -120,6 +120,10 @@ export function ProjectDetailPage() {
   const [savedMeta, setSavedMeta] = useState({ background: '', objective: '' })
   const [isSavingMeta, setIsSavingMeta] = useState(false)
 
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState<any | null>(null)
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false)
+
   const [productName, setProductName] = useState('')
   const [isRegisteringProduct, setIsRegisteringProduct] = useState(false)
   const [showRegisterConfirm, setShowRegisterConfirm] = useState(false)
@@ -370,6 +374,25 @@ export function ProjectDetailPage() {
     }
   }
 
+  async function analyzeFormula() {
+    if (!tryDraft) return
+    setIsAnalyzing(true)
+    try {
+      const result = await apiPost('/ai/recommendations/draft-tries', {
+        projectName: projectMeta.name,
+        targetFunction: projectMeta.objective,
+        dosageForm: tryDraft.dosageForm,
+        sourceFormula: { ingredients: tryDraft.ingredients }
+      })
+      setAnalysisResult(result)
+      setShowAnalysisModal(true)
+    } catch (e) {
+      setNotice('AI 분석 중 오류가 발생했습니다.')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
   async function handleSaveAndLeave() {
     const saved = await saveTryDraftSilent()
     if (saved && blocker.proceed) {
@@ -612,6 +635,15 @@ export function ProjectDetailPage() {
                   >
                     {isSaving ? '저장 중...' : '저장'}
                   </button>
+                  <button
+                    type="button"
+                    className="primary-dashboard-button"
+                    onClick={analyzeFormula}
+                    disabled={isAnalyzing}
+                    style={{ marginLeft: 8, backgroundColor: '#8a2be2' }}
+                  >
+                    {isAnalyzing ? '분석 중...' : 'AI 배합 분석 ✨'}
+                  </button>
                 </div>
               )}
 
@@ -686,6 +718,52 @@ export function ProjectDetailPage() {
                 }}
               >
                 등록
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI 분석 결과 모달 */}
+      {showAnalysisModal && analysisResult && (
+        <div className="modal-backdrop" role="dialog" onClick={(e) => { if (e.target === e.currentTarget) setShowAnalysisModal(false) }}>
+          <div className="modal-panel" style={{ maxWidth: 600, maxHeight: '80vh', overflowY: 'auto' }}>
+            <h3 style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>AI 배합 분석 결과 ✨</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>{analysisResult.safetyNotice}</p>
+            
+            {analysisResult.safetySignals?.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {analysisResult.safetySignals.map((signal: any, idx: number) => (
+                  <div key={idx} style={{ 
+                    padding: '1rem', 
+                    borderRadius: '8px', 
+                    backgroundColor: signal.severity === 'warning' ? '#fff3f3' : signal.severity === 'caution' ? '#fffbf0' : '#f0f7ff',
+                    border: `1px solid ${signal.severity === 'warning' ? '#ffcdd2' : signal.severity === 'caution' ? '#ffecb3' : '#bbdefb'}`
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <strong style={{ color: signal.severity === 'warning' ? '#d32f2f' : signal.severity === 'caution' ? '#f57c00' : '#1976d2' }}>
+                        {signal.label}
+                      </strong>
+                      <span style={{ fontSize: '0.8rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(0,0,0,0.05)' }}>
+                        {signal.evidenceLevel}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.95rem', whiteSpace: 'pre-line' }}>{signal.message}</p>
+                    {signal.relatedIngredients?.length > 0 && (
+                      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        관련 원료: {signal.relatedIngredients.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>분석된 특이사항이 없습니다.</p>
+            )}
+            
+            <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
+              <button type="button" className="primary-dashboard-button" onClick={() => setShowAnalysisModal(false)}>
+                확인
               </button>
             </div>
           </div>

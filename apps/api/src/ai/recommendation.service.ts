@@ -1,17 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AI_PROVIDER_TOKEN } from './ai-provider.interface';
 import type { AiProvider } from './ai-provider.interface';
-import {
-  CreateDraftTriesDto,
-  type DraftFormulaIngredientDto,
-} from './dto/create-draft-tries.dto';
-
-type DraftTryCandidate = {
-  title: string;
-  objective: string;
-  suggestedChanges: string[];
-  riskChecks: string[];
-};
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateDraftTriesDto } from './dto/create-draft-tries.dto';
 
 type SafetySignal = {
   type: string;
@@ -24,170 +15,97 @@ type SafetySignal = {
 
 @Injectable()
 export class RecommendationService {
+  private readonly logger = new Logger(RecommendationService.name);
+
   constructor(
     @Inject(AI_PROVIDER_TOKEN) private readonly aiProvider: AiProvider,
+    private readonly prisma: PrismaService,
   ) {}
 
   async createDraftTries(dto: CreateDraftTriesDto) {
-    const prompt = this.buildPrompt(dto);
+    const ingredientsString = (dto.sourceFormula?.ingredients ?? [])
+      .map((i) => `${i.ingredientName} ${i.amount}${i.unit}`)
+      .join(', ');
+
+    // 1. RAG Search (Vector Search based on ingredients)
+    let contextDocs = '';
+    if (ingredientsString) {
+      const queryEmbedding = await this.aiProvider.generateEmbedding(ingredientsString);
+      const embeddingString = `[${queryEmbedding.join(',')}]`;
+      
+      const vectorResults = await this.prisma.$queryRaw<{ content: string; title: string }[]>`
+        SELECT v.content, v.metadata->>'title' as title
+        FROM "VectorDocument" v
+        ORDER BY (v.embedding <=> ${embeddingString}::vector) ASC
+        LIMIT 5;
+      `;
+      contextDocs = vectorResults.map((r, i) => `[문헌 ${i + 1}] ${r.title}: ${r.content}`).join('\n\n');
+    }
+
+    // 2. Build Prompt for LLM
+    const prompt = this.buildPrompt(dto, contextDocs);
     const providerOutput = await this.aiProvider.generateText(prompt);
+
+    // 3. Parse JSON response from LLM
+    let safetySignals: SafetySignal[] = [];
+    try {
+      // Find json block if markdown formatted
+      const jsonMatch = providerOutput.match(/```json\n([\s\S]*?)\n```/);
+      const jsonString = jsonMatch ? jsonMatch[1] : providerOutput;
+      const parsed = JSON.parse(jsonString);
+      if (Array.isArray(parsed.safetySignals)) {
+        safetySignals = parsed.safetySignals;
+      }
+    } catch (e) {
+      this.logger.error('Failed to parse AI JSON response', e);
+      // Fallback
+      safetySignals = [{
+        type: 'parsing-error',
+        label: '분석 실패',
+        severity: 'info',
+        message: 'AI 분석 결과를 파싱하는데 실패했습니다. 다시 시도해주세요.',
+        evidenceLevel: 'system',
+        relatedIngredients: []
+      }];
+    }
 
     return {
       projectName: dto.projectName ?? '신규 제품 개발',
-      providerOutput,
-      safetyNotice:
-        'AI 추천은 연구 후보 초안이며, 독성/상한/규격/공정 적합성은 근거 자료와 실험으로 확인해야 합니다.',
-      safetySignals: this.createSafetySignals(dto),
-      candidates: this.createCandidateSet(dto),
+      providerOutput: 'AI 배합 분석이 완료되었습니다.',
+      safetyNotice: 'AI 추천은 연구 후보 초안이며, 독성/상한/규격/공정 적합성은 근거 자료와 실험으로 확인해야 합니다.',
+      safetySignals: safetySignals,
+      candidates: [], // Currently not focusing on candidate generation for this feature
     };
   }
 
-  private buildPrompt(dto: CreateDraftTriesDto) {
-    return [
-      '건강기능식품 고형제 배합 후보를 제안한다.',
-      '독성 가능성을 최우선으로 회피하고, 기준 규격과 상한 섭취량을 위반할 수 있는 변경은 명확히 경고한다.',
-      '콜마 특화 제형 가능성도 함께 검토한다.',
-      JSON.stringify(dto, null, 2),
-    ].join('\n');
-  }
+  private buildPrompt(dto: CreateDraftTriesDto, contextDocs: string) {
+    return `
+당신은 건강기능식품 및 제약 배합을 분석하는 전문 AI 연구 보조원입니다.
+다음은 사용자가 입력한 배합표와, 시스템이 검색한 근거 문헌(논문/식약처 자료 등)입니다.
 
-  private createCandidateSet(dto: CreateDraftTriesDto): DraftTryCandidate[] {
-    const targetFunction = dto.targetFunction ?? '목표 기능성';
-    const dosageForm = dto.dosageForm ?? '고형제';
+[배합 데이터]
+${JSON.stringify(dto, null, 2)}
 
-    return [
-      {
-        title: '안정성 우선 후보',
-        objective: '원료 상한, 독성 가능성, 부적합 배합을 우선 회피',
-        suggestedChanges: ['고위험 원료 증량 보류', '기준 처방 대비 최소 변경'],
-        riskChecks: ['식약처 기준 규격', '원료별 일일 섭취량 상한'],
-      },
-      {
-        title: '기능성 우선 후보',
-        objective: `${targetFunction} 지표 강화를 목표로 한 후보`,
-        suggestedChanges: [
-          '핵심 기능 원료 비율 검토',
-          '근거 등급 높은 원료 우선',
-        ],
-        riskChecks: ['기능성 인정 범위', '원료 간 상호작용'],
-      },
-      {
-        title: '맛/관능 개선 후보',
-        objective: '쓴맛, 산미, 색 변화를 줄이는 후보',
-        suggestedChanges: ['관능 이슈 원료 비율 완화', '마스킹 원료 후보 검토'],
-        riskChecks: ['당류/감미료 기준', '제형별 맛 안정성'],
-      },
-      {
-        title: '원가 절감 후보',
-        objective: '핵심 기능을 유지하면서 고가 원료 사용량을 낮추는 후보',
-        suggestedChanges: [
-          '고가 원료 단계적 감량',
-          '동일 기능 근거 원료 대체 검토',
-        ],
-        riskChecks: ['기능성 저하', '원료 대체 시 표시 기준'],
-      },
-      {
-        title: '콜마 특화 제형 후보',
-        objective: `${dosageForm} 기반 콜마 특화 고형제 옵션을 검토`,
-        suggestedChanges: [
-          '츄어블/이중 제형/미니 정제 적용성 검토',
-          '스틱 또는 Multi PTP 포장 검토',
-        ],
-        riskChecks: ['제형 안정성', '공정 변경에 따른 품질 기준'],
-      },
-      {
-        title: '기존 처방 최소 변경 후보',
-        objective: '현재 처방을 최대한 유지하고 테스트 리스크를 낮추는 후보',
-        suggestedChanges: ['기준 처방 유지', '한 번에 하나의 변수만 변경'],
-        riskChecks: ['변경 원료 영향 추적', 'try 간 비교 가능성'],
-      },
-    ];
-  }
+[검색된 근거 문헌 (Context)]
+${contextDocs || '검색된 근거 문헌이 없습니다.'}
 
-  private createSafetySignals(dto: CreateDraftTriesDto): SafetySignal[] {
-    const ingredients = dto.sourceFormula?.ingredients ?? [];
-    const hasVitaminC = ingredients.some((ingredient) =>
-      this.isVitaminCIngredient(ingredient),
-    );
-    const hasZinc = ingredients.some((ingredient) =>
-      this.includesText(ingredient.ingredientName, '아연'),
-    );
-    const signals: SafetySignal[] = [];
+위 배합 데이터를 분석하여 다음을 수행하세요:
+1. 근거 문헌을 바탕으로 원료 간 상호작용, 부작용, 독성 발생 가능성을 경고하세요. (예: A원료가 B원료보다 배합비가 높을 때의 부작용 등)
+2. 시중 유사 브랜드 제품과 배합을 벤치마킹하여 노티를 제공하세요. (근거 문헌에 없다면 자체 사전 지식 활용 가능)
 
-    const vitaminCIngredient = ingredients.find((ingredient) =>
-      this.isVitaminCIngredient(ingredient),
-    );
-    if (vitaminCIngredient) {
-      signals.push({
-        type: 'sensory-stability',
-        label: '관능/산미 안정성',
-        severity: 'caution',
-        message:
-          '비타민 C는 산미와 색 변화 가능성이 있어 제형 안정성 확인이 필요합니다.',
-        evidenceLevel: 'formulation-signal',
-        relatedIngredients: [vitaminCIngredient.ingredientName],
-      });
+반드시 아래 JSON 형식으로만 응답하세요. (마크다운 백틱 없이 순수 JSON만 출력)
+{
+  "safetySignals": [
+    {
+      "type": "상호작용|독성경고|유사제품|일반노티",
+      "label": "짧은 경고 제목 (예: 관능/산미 안정성)",
+      "severity": "warning" | "caution" | "info",
+      "message": "상세한 경고 또는 분석 메시지",
+      "evidenceLevel": "문헌 기반" | "사전 지식 기반",
+      "relatedIngredients": ["원료명1", "원료명2"]
     }
-
-    const zincIngredient = ingredients.find((ingredient) => {
-      const amount = this.toNumber(ingredient.amount);
-
-      return (
-        this.includesText(ingredient.ingredientName, '아연') &&
-        this.includesText(ingredient.unit, 'mg') &&
-        amount !== null &&
-        amount >= 30
-      );
-    });
-    if (zincIngredient) {
-      const amount = this.toNumber(zincIngredient.amount);
-      signals.push({
-        type: 'upper-intake-review',
-        label: '상한 섭취량 검토',
-        severity: 'warning',
-        message: `아연 ${amount}mg 입력값은 일일 섭취량 상한 검토가 필요합니다.`,
-        evidenceLevel: 'rule-of-thumb',
-        relatedIngredients: [zincIngredient.ingredientName],
-      });
-    }
-
-    if (hasVitaminC && hasZinc) {
-      signals.push({
-        type: 'combination-review',
-        label: '원료 조합 검토',
-        severity: 'info',
-        message:
-          '비타민 C와 아연 조합은 함량 변화 시 맛, 위장 부담, 표시 기준을 함께 검토해야 합니다.',
-        evidenceLevel: 'internal-review',
-        relatedIngredients: ['비타민 C', '아연'],
-      });
-    }
-
-    return signals;
-  }
-
-  private isVitaminCIngredient(ingredient: DraftFormulaIngredientDto) {
-    return (
-      this.includesText(ingredient.ingredientName, '비타민 c') ||
-      this.includesText(ingredient.ingredientName, 'vitamin c') ||
-      this.includesText(ingredient.note, '산미')
-    );
-  }
-
-  private includesText(value: string | null | undefined, keyword: string) {
-    return value?.toLowerCase().includes(keyword.toLowerCase()) ?? false;
-  }
-
-  private toNumber(value: number | string | null | undefined) {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const parsed = Number(value.trim());
-    return Number.isFinite(parsed) ? parsed : null;
+  ]
+}
+`;
   }
 }

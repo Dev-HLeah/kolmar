@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
 import { AiProvider } from './ai-provider.interface';
+import { buildDocumentSummaryPrompt } from './openai.provider';
 
 export class GeminiProvider implements AiProvider {
   private readonly client: GoogleGenAI;
@@ -25,5 +26,20 @@ export class GeminiProvider implements AiProvider {
     });
 
     return response.text ?? '';
+  }
+
+  async generateEmbedding(text: string) {
+    const response = await this.client.models.embedContent({
+      model: 'text-embedding-004',
+      contents: text,
+    });
+
+    return response.embeddings?.[0]?.values ?? [];
+  }
+
+  async analyzeDocument({ text, filename }: { text?: string; pdfBuffer?: Buffer; filename: string }) {
+    const content = text ?? `[${filename} 파일 — 텍스트 추출 불가]`;
+    const prompt = buildDocumentSummaryPrompt(content, filename);
+    return this.generateText(prompt);
   }
 }

@@ -11,4 +11,14 @@ export class MockAiProvider implements AiProvider {
       ].join('\n'),
     );
   }
+
+  generateEmbedding() {
+    return Promise.resolve(Array(1536).fill(0.1));
+  }
+
+  analyzeDocument({ filename }: { text?: string; pdfBuffer?: Buffer; filename: string }) {
+    return Promise.resolve(
+      `[Mock] "${filename}" 문서를 분석했습니다. 실제 AI 키가 설정되면 상세 분석 결과로 교체됩니다.`,
+    );
+  }
 }

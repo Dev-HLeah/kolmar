@@ -15,7 +15,7 @@ const navItems: NavItem[] = [
   { to: '/', label: '대시보드', end: true },
   { to: '/products', label: '제품/처방' },
   { to: '/projects', label: '프로젝트' },
-  { to: '/knowledge', label: '근거 검색' },
+  { to: '/knowledge', label: '백데이터 관리' },
   { to: '/audit-logs', label: '운영 로그', roles: ['admin'] },
 ]
 
@@ -96,7 +96,7 @@ const NAV_ICONS: Record<string, string> = {
   '대시보드': '⊞',
   '제품/처방': '⬡',
   '프로젝트': '◈',
-  '근거 검색': '⌕',
+  '백데이터 관리': '⌕',
   '운영 로그': '≡',
 }
 

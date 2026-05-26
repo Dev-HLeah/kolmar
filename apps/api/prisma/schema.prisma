@@ -245,6 +245,35 @@ model AuditLog {
   @@index([targetType, targetId])
 }
 
+model KnowledgeDocument {
+  id           String   @id @default(cuid())
+  title        String
+  sourceName   String
+  sourceUrl    String?
+  summary      String?
+  fileType     String   // pdf, docx, txt
+  openaiFileId String?
+  createdAt    DateTime @default(now())
+}
+
+model CollectionJob {
+  id         String    @id @default(cuid())
+  source     String
+  status     String    @default("PENDING")
+  totalCount Int       @default(0)
+  doneCount  Int       @default(0)
+  message    String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+}
+
+model CollectedUrl {
+  id          String   @id @default(cuid())
+  url         String   @unique
+  source      String
+  collectedAt DateTime @default(now())
+}
+
 /// Supabase SQL Editor setup:
 /// create extension if not exists vector;
 model VectorDocument {
