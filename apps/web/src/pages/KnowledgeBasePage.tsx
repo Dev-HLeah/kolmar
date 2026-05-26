@@ -28,6 +28,8 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   docx: 'Word',
   txt: 'TXT',
   pubmed: 'PubMed',
+  pubchem: 'PubChem',
+  openfda: 'OpenFDA',
   mfds: '식약처',
 }
 
