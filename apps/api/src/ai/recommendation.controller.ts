@@ -4,7 +4,7 @@ import { UserRole } from '../auth/user-role';
 import { CreateDraftTriesDto } from './dto/create-draft-tries.dto';
 import { RecommendationService } from './recommendation.service';
 
-@Controller('recommendations')
+@Controller('ai/recommendations')
 export class RecommendationController {
   constructor(private readonly recommendationService: RecommendationService) {}
 
